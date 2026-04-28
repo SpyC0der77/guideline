@@ -154,7 +154,6 @@ export default function SoftPage() {
                   "transition-all duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]",
                   "hover:-translate-y-1 hover:rotate-[-0.85deg] hover:border-[#e07a5f]/85 hover:bg-white hover:shadow-[0_14px_40px_-14px_oklch(0.52_0.16_32/0.35)]",
                   !fontFile && !isDragOver && "animate-upload-zone-breathe",
-                  fontFile && "animate-none shadow-none hover:translate-y-0 hover:rotate-0",
                   isDragOver &&
                     "scale-[1.04] -rotate-2 border-solid border-[#e07a5f] bg-white shadow-[0_28px_50px_-20px_oklch(0.48_0.15_28/0.45)] ring-4 ring-[#e07a5f]/25",
                 )}
@@ -171,11 +170,7 @@ export default function SoftPage() {
                 ) : null}
                 <span
                   aria-hidden
-                  className={cn(
-                    "relative inline-flex shrink-0 items-center justify-center transition-transform duration-300 group-hover/upload:scale-[1.03]",
-                    !fontFile && "animate-whimsical-paper-float",
-                    fontFile && "animate-none",
-                  )}
+                  className="relative inline-flex shrink-0 items-center justify-center transition-transform duration-300 group-hover/upload:scale-[1.03] animate-whimsical-paper-float motion-reduce:animate-none"
                 >
                   <File className="size-6 text-[#3a2218]" strokeWidth={1.75} />
                 </span>
