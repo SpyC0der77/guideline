@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { File } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface ApiErrorResponse {
   error?: string;
@@ -13,11 +16,46 @@ export default function SoftPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragDepth = useRef(0);
   const imageUrl = useMemo(() => (imageBlob ? URL.createObjectURL(imageBlob) : ""), [imageBlob]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
   }, [imageUrl]);
+
+  function handleDragEnter(event: React.DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current += 1;
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current -= 1;
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0;
+      setIsDragOver(false);
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current = 0;
+    setIsDragOver(false);
+    const dropped = event.dataTransfer.files?.[0];
+    if (!dropped) return;
+    const lower = dropped.name.toLowerCase();
+    if (lower.endsWith(".ttf") || lower.endsWith(".otf")) setFontFile(dropped);
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,6 +65,7 @@ export default function SoftPage() {
     }
     setIsLoading(true);
     setErrorMessage("");
+    setImageBlob(null);
     const body = new FormData();
     body.append("font", fontFile);
     body.append("dpi", String(DEFAULT_DPI));
@@ -101,21 +140,59 @@ export default function SoftPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="mt-10 max-w-md space-y-6">
-            <label className="block">
+            <label
+              htmlFor="font-upload"
+              className="block cursor-pointer"
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
               <span
-                className="flex items-center gap-3 rounded-3xl border-2 border-dashed border-[#3a2218]/30 bg-white/70 px-5 py-4 text-sm backdrop-blur-sm transition-colors hover:border-[#e07a5f] hover:bg-white"
+                className={cn(
+                  "group/upload relative flex items-center gap-3 overflow-hidden rounded-3xl border-2 border-dashed border-[#3a2218]/30 bg-white/70 px-5 py-4 text-sm backdrop-blur-sm",
+                  "transition-all duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]",
+                  "hover:-translate-y-1 hover:rotate-[-0.85deg] hover:border-[#e07a5f]/85 hover:bg-white hover:shadow-[0_14px_40px_-14px_oklch(0.52_0.16_32/0.35)]",
+                  !fontFile && !isDragOver && "animate-upload-zone-breathe",
+                  fontFile && "animate-none shadow-none hover:translate-y-0 hover:rotate-0",
+                  isDragOver &&
+                    "scale-[1.04] -rotate-2 border-solid border-[#e07a5f] bg-white shadow-[0_28px_50px_-20px_oklch(0.48_0.15_28/0.45)] ring-4 ring-[#e07a5f]/25",
+                )}
               >
-                <span aria-hidden className="text-2xl">📄</span>
-                <span className="flex-1 truncate">
-                  {fontFile?.name ?? "Drop in a .ttf or .otf"}
+                {!fontFile ? (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "animate-upload-dash-march pointer-events-none absolute inset-0 rounded-3xl opacity-[0.08] transition-opacity duration-300",
+                      "group-hover/upload:opacity-[0.16]",
+                      isDragOver && "opacity-30",
+                    )}
+                  />
+                ) : null}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "relative inline-flex shrink-0 items-center justify-center transition-transform duration-300 group-hover/upload:scale-[1.03]",
+                    !fontFile && "animate-whimsical-paper-float",
+                    fontFile && "animate-none",
+                  )}
+                >
+                  <File className="size-6 text-[#3a2218]" strokeWidth={1.75} />
                 </span>
-                <span className="rounded-full bg-[#3a2218] px-3 py-1 text-xs text-[#fff1e3]">browse</span>
+                <span className="relative min-w-0 flex-1 truncate">
+                  {fontFile?.name ??
+                    (isDragOver ? "Let go — I’ve got it!" : "Drop in a .ttf or .otf")}
+                </span>
+                <span className="relative rounded-full bg-[#3a2218] px-3 py-1 text-xs text-[#fff1e3] shadow-sm">
+                  browse
+                </span>
                 <input
+                  id="font-upload"
                   type="file"
                   accept=".ttf,.otf,font/ttf,font/otf"
                   aria-label="Choose a font file (.ttf or .otf)"
                   onChange={(event) => setFontFile(event.target.files?.[0] ?? null)}
-                  className="absolute size-0 opacity-0"
+                  className="sr-only"
                 />
               </span>
             </label>
@@ -144,12 +221,84 @@ export default function SoftPage() {
 
         <div className="relative">
           <div
-            className="relative mx-auto w-full max-w-md rotate-[1.5deg] rounded-[28px] bg-white p-3 shadow-[0_30px_60px_-20px_rgba(58,34,24,0.35)]"
+            className={cn(
+              "relative mx-auto w-full max-w-md rounded-[28px] bg-white p-3",
+              "shadow-[0_30px_60px_-20px_rgba(58,34,24,0.35)] ring-1 ring-[#3a2218]/4",
+              "animate-practice-sheet-sway motion-reduce:animate-none",
+            )}
           >
-            <span aria-hidden className="absolute -top-3 left-1/2 h-6 w-24 -translate-x-1/2 rounded-full bg-[#fff1e3]/90 [box-shadow:inset_0_0_0_1px_rgba(58,34,24,0.15)]" />
-            {imageUrl ? (
+            <span
+              aria-hidden
+              className={cn(
+                "absolute -top-3 left-1/2 h-6 w-24 rounded-full bg-[#fff1e3]/90 [box-shadow:inset_0_0_0_1px_rgba(58,34,24,0.15)]",
+                "animate-practice-sheet-pin",
+                "motion-reduce:-translate-x-1/2 motion-reduce:animate-none",
+              )}
+            />
+            {isLoading ? (
+              <div
+                className="relative aspect-8.5/11 w-full overflow-hidden rounded-[20px]"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(0deg, transparent 0 36px, rgba(58,34,24,0.07) 36px 37px)",
+                  backgroundColor: "#faf5ee",
+                }}
+                role="status"
+                aria-live="polite"
+                aria-busy
+                aria-label="Drawing your practice sheet"
+              >
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 overflow-hidden rounded-[20px]"
+                >
+                  <div
+                    className={cn(
+                      "absolute -inset-y-6 -left-1/3 w-[55%]",
+                      "bg-linear-to-br from-transparent via-[#fffefb]/95 to-transparent",
+                      "animate-practice-skeleton-shimmer motion-reduce:animate-none",
+                      "opacity-[0.93]",
+                    )}
+                  />
+                  <div
+                    aria-hidden
+                    className="absolute inset-x-10 top-[12%] h-10 rounded-full bg-[#3a2218]/6"
+                  />
+                  <div aria-hidden className="absolute inset-x-10 top-[34%] space-y-[22px]">
+                    {(
+                      [
+                        "w-[92%]",
+                        "w-[76%]",
+                        "w-[84%]",
+                        "w-[71%]",
+                        "w-[88%]",
+                        "w-[81%]",
+                        "w-[79%]",
+                        "w-[86%]",
+                      ] as const
+                    ).map((lineClass, idx) => (
+                      <div
+                        key={`skeleton-row-${idx}`}
+                        className={cn(
+                          "h-[10px] rounded-full bg-[#3a2218]/5",
+                          lineClass,
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <p className="absolute inset-x-0 bottom-12 text-center text-sm font-medium text-[#3a2218]/45">
+                  Petal is sketching your letters…
+                </p>
+              </div>
+            ) : imageUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={imageUrl} alt="Tracing sheet" className="block h-auto w-full rounded-[20px]" />
+              <img
+                key={imageUrl}
+                src={imageUrl}
+                alt="Tracing sheet"
+                className="animate-practice-sheet-image-in motion-reduce:animate-none block h-auto w-full rounded-[20px]"
+              />
             ) : (
               <div
                 className="grid aspect-8.5/11 w-full place-items-center rounded-[20px]"
@@ -160,7 +309,12 @@ export default function SoftPage() {
                 }}
               >
                 <div className="text-center">
-                  <div className="font-(family-name:--font-display-4) text-[7rem] italic leading-none text-[#e07a5f]">
+                  <div
+                    className={cn(
+                      "font-(family-name:--font-display-4) text-[7rem] italic leading-none text-[#e07a5f]",
+                      "animate-practice-sheet-placeholder motion-reduce:animate-none",
+                    )}
+                  >
                     Aa
                   </div>
                   <p className="mt-2 text-sm text-[#3a2218]/60">your practice sheet appears here</p>
@@ -168,18 +322,44 @@ export default function SoftPage() {
               </div>
             )}
           </div>
-          {imageUrl ? (
-            <div className="mt-6 flex justify-center">
-              <a
-                href={imageUrl}
-                download="tracing-sheet.png"
-                className="inline-flex items-center gap-2 rounded-full border-2 border-[#3a2218] bg-white/70 px-5 py-2.5 text-sm font-semibold backdrop-blur-sm transition-colors hover:bg-[#3a2218] hover:text-[#fff1e3]"
+          <div
+            className="mt-6 flex min-h-11.5 items-center justify-center"
+          >
+            <a
+              href={imageUrl || "#"}
+              download={imageUrl ? "tracing-sheet.png" : undefined}
+              onClick={(e) => {
+                if (!imageUrl) e.preventDefault();
+              }}
+              className={cn(
+                "group/dl relative inline-flex items-center gap-2 overflow-hidden rounded-full border-2 border-[#3a2218] bg-white/90 px-5 py-2.5 text-sm font-semibold backdrop-blur-sm",
+                imageUrl &&
+                  "animate-download-pill-twinkle motion-reduce:animate-none!",
+                "transition-[transform,opacity,color,background-color,border-color] duration-300",
+                imageUrl &&
+                  "hover:scale-[1.04] hover:animate-none! hover:bg-[#3a2218] hover:text-[#fff1e3]",
+                !imageUrl && "pointer-events-none opacity-0",
+              )}
+              aria-hidden={!imageUrl}
+              tabIndex={imageUrl ? undefined : -1}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "inline-block",
+                  imageUrl &&
+                    "animate-download-arrow-bounce motion-reduce:animate-none!",
+                )}
               >
-                <span aria-hidden>⬇</span>
-                <span>save &amp; print</span>
-              </a>
-            </div>
-          ) : null}
+                ⬇
+              </span>
+              <span>save &amp; print</span>
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -top-8 -left-4 size-20 rounded-full bg-[#f7c8d6]/55 blur-xl transition-opacity duration-500 group-hover/dl:opacity-60"
+              />
+            </a>
+          </div>
         </div>
       </section>
     </main>
