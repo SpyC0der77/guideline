@@ -9,7 +9,35 @@ interface ApiErrorResponse {
   error?: string;
 }
 
+type GlyphBorderMode = "solid" | "dotted";
+type DotDensity = 1 | 2 | 3 | 4;
+
+interface GlyphBorderModeOption {
+  value: GlyphBorderMode;
+  label: string;
+  description: string;
+}
+
 const DEFAULT_DPI = 300;
+const DEFAULT_DOT_DENSITY: DotDensity = 1;
+const GLYPH_BORDER_MODE_OPTIONS: GlyphBorderModeOption[] = [
+  {
+    value: "solid",
+    label: "Solid",
+    description: "continuous outlines",
+  },
+  {
+    value: "dotted",
+    label: "Dotted",
+    description: "dotted outlines",
+  },
+];
+const DOT_DENSITY_LABELS: Record<DotDensity, string> = {
+  1: "Sparse",
+  2: "Normal",
+  3: "Dense",
+  4: "Tight",
+};
 
 function GuidelineMark({ className }: { className?: string }) {
   return (
@@ -31,6 +59,9 @@ export default function SoftPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [glyphBorderMode, setGlyphBorderMode] = useState<GlyphBorderMode>("solid");
+  const [dotDensity, setDotDensity] = useState<DotDensity>(DEFAULT_DOT_DENSITY);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const dragDepth = useRef(0);
   const imageUrl = useMemo(() => (imageBlob ? URL.createObjectURL(imageBlob) : ""), [imageBlob]);
 
@@ -71,6 +102,19 @@ export default function SoftPage() {
     if (lower.endsWith(".ttf") || lower.endsWith(".otf")) setFontFile(dropped);
   }
 
+  function handleGlyphBorderModeChange(nextGlyphBorderMode: GlyphBorderMode) {
+    setGlyphBorderMode(nextGlyphBorderMode);
+    setImageBlob(null);
+  }
+
+  function handleDotDensityChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const nextDotDensity = Number.parseInt(event.target.value, 10);
+    if (nextDotDensity === 1 || nextDotDensity === 2 || nextDotDensity === 3 || nextDotDensity === 4) {
+      setDotDensity(nextDotDensity);
+      setImageBlob(null);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!fontFile) {
@@ -83,6 +127,8 @@ export default function SoftPage() {
     const body = new FormData();
     body.append("font", fontFile);
     body.append("dpi", String(DEFAULT_DPI));
+    body.append("glyphBorderMode", glyphBorderMode);
+    body.append("dotDensity", String(dotDensity));
     try {
       const response = await fetch("/api/guideline", { method: "POST", body });
       if (!response.ok) {
@@ -205,6 +251,98 @@ export default function SoftPage() {
                 />
               </span>
             </label>
+
+            <div className="rounded-2xl border border-[#3a2218]/18 bg-white/50 px-4 py-3 text-sm">
+              <button
+                type="button"
+                aria-expanded={isAdvancedOpen}
+                aria-controls="advanced-settings"
+                onClick={() => setIsAdvancedOpen((isOpen) => !isOpen)}
+                className="flex w-full items-center justify-between gap-3 text-left font-semibold text-[#3a2218]"
+              >
+                <span>Advanced</span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "transition-transform duration-200 motion-reduce:transition-none",
+                    isAdvancedOpen && "rotate-180",
+                  )}
+                >
+                  v
+                </span>
+              </button>
+              <div
+                id="advanced-settings"
+                aria-hidden={!isAdvancedOpen}
+                className={cn(
+                  "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+                  isAdvancedOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div className="mt-4 space-y-4">
+                    <fieldset className="space-y-2">
+                      <legend className="text-sm font-semibold text-[#3a2218]">Glyph border</legend>
+                      <div className="grid grid-cols-2 gap-2">
+                        {GLYPH_BORDER_MODE_OPTIONS.map((option) => {
+                          const isSelected = glyphBorderMode === option.value;
+
+                          return (
+                            <label
+                              key={option.value}
+                              className={cn(
+                                "cursor-pointer rounded-2xl border bg-white/70 px-4 py-3 text-sm transition-colors",
+                                "focus-within:ring-2 focus-within:ring-[#e07a5f]/45 focus-within:ring-offset-2 focus-within:ring-offset-[#fff1e3]",
+                                isSelected
+                                  ? "border-[#3a2218] text-[#3a2218]"
+                                  : "border-[#3a2218]/18 text-[#3a2218]/65 hover:border-[#3a2218]/45",
+                              )}
+                            >
+                              <input
+                                type="radio"
+                                name="glyph-border-mode"
+                                value={option.value}
+                                checked={isSelected}
+                                disabled={!isAdvancedOpen}
+                                onChange={() => handleGlyphBorderModeChange(option.value)}
+                                className="sr-only"
+                              />
+                              <span className="block font-semibold">{option.label}</span>
+                              <span className="mt-0.5 block text-xs">{option.description}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+
+                    <div className="flex items-baseline justify-between gap-3">
+                      <label htmlFor="dot-density" className="font-medium text-[#3a2218]">
+                        Dot density
+                      </label>
+                      <span className="text-xs text-[#3a2218]/60">{DOT_DENSITY_LABELS[dotDensity]}</span>
+                    </div>
+                    <input
+                      id="dot-density"
+                      type="range"
+                      min="1"
+                      max="4"
+                      step="1"
+                      value={dotDensity}
+                      disabled={!isAdvancedOpen || glyphBorderMode !== "dotted"}
+                      onChange={handleDotDensityChange}
+                      className="w-full accent-[#3a2218] disabled:opacity-40"
+                    />
+                    <div className="flex justify-between text-xs text-[#3a2218]/55">
+                      <span>Sparser</span>
+                      <span>Denser</span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-[#3a2218]/60">
+                      Applies only when the glyph border is set to dotted.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {errorMessage ? (
               <p className="rounded-2xl bg-[#ffe1d6] px-4 py-2 text-sm text-[#7a2f1c]">

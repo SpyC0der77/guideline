@@ -4,7 +4,11 @@ import path from "node:path";
 import os from "node:os";
 import * as fontkit from "fontkit";
 
-import { createTracingSheetPng } from "@/lib/create-tracing-sheet";
+import {
+  createTracingSheetPng,
+  type DotDensity,
+  type GlyphBorderMode,
+} from "@/lib/create-tracing-sheet";
 
 const FONT_SIZE_LIMIT = 4 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([".ttf", ".otf"]);
@@ -21,6 +25,18 @@ function parseDpi(value: FormDataEntryValue | null): number {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return 300;
   return Math.max(72, Math.min(600, parsed));
+}
+
+function parseGlyphBorderMode(value: FormDataEntryValue | null): GlyphBorderMode {
+  if (value === "dotted") return "dotted";
+  return "solid";
+}
+
+function parseDotDensity(value: FormDataEntryValue | null): DotDensity {
+  if (typeof value !== "string") return 1;
+  const parsed = Number.parseInt(value, 10);
+  if (parsed === 1 || parsed === 2 || parsed === 3 || parsed === 4) return parsed;
+  return 1;
 }
 
 function getDisplayNameFromBuffer(buffer: Buffer, fallback: string): string {
@@ -55,6 +71,8 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: "Only .ttf and .otf fonts are supported." }, { status: 400 });
 
     const dpi = parseDpi(formData.get("dpi"));
+    const glyphBorderMode = parseGlyphBorderMode(formData.get("glyphBorderMode"));
+    const dotDensity = parseDotDensity(formData.get("dotDensity"));
     const arrayBuffer = await font.arrayBuffer();
     const fontBuffer = Buffer.from(arrayBuffer);
     const fallbackName = path.basename(font.name, extension);
@@ -71,6 +89,8 @@ export async function POST(request: Request): Promise<Response> {
         fontPath: tempFontPath,
         fontFamily,
         fontDisplayName,
+        glyphBorderMode,
+        dotDensity,
       });
       return new Response(new Uint8Array(pngBuffer), {
         headers: {

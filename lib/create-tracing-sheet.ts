@@ -1,10 +1,15 @@
 import { GlobalFonts, createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
 
+export type GlyphBorderMode = "solid" | "dotted";
+export type DotDensity = 1 | 2 | 3 | 4;
+
 interface TracingSheetOptions {
   dpi: number;
   fontPath: string;
   fontFamily: string;
   fontDisplayName: string;
+  glyphBorderMode?: GlyphBorderMode;
+  dotDensity?: DotDensity;
 }
 
 interface GlyphMetrics {
@@ -15,6 +20,16 @@ interface GlyphMetrics {
 function clampDpi(dpi: number): number {
   if (!Number.isFinite(dpi)) return 300;
   return Math.max(72, Math.min(600, Math.round(dpi)));
+}
+
+function getDotGapMultiplier(dotDensity: DotDensity): number {
+  const gapMultipliers: Record<DotDensity, number> = {
+    1: 3.8,
+    2: 2.4,
+    3: 1.4,
+    4: 0.75,
+  };
+  return gapMultipliers[dotDensity];
 }
 
 function getGlyphMetrics(context: SKRSContext2D, text: string): GlyphMetrics {
@@ -32,13 +47,23 @@ function drawOutlinedGlyph(
   glyph: string,
   x: number,
   y: number,
-  strokeWidth: number
+  strokeWidth: number,
+  glyphBorderMode: GlyphBorderMode,
+  dotDensity: DotDensity
 ): void {
+  context.save();
   context.lineWidth = strokeWidth;
   context.strokeStyle = "rgb(150, 150, 150)";
   context.fillStyle = "rgb(255, 255, 255)";
+  if (glyphBorderMode === "dotted") {
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.setLineDash([strokeWidth, strokeWidth * getDotGapMultiplier(dotDensity)]);
+  }
   context.strokeText(glyph, x, y);
+  context.setLineDash([]);
   context.fillText(glyph, x, y);
+  context.restore();
 }
 
 export function createTracingSheetPng({
@@ -46,6 +71,8 @@ export function createTracingSheetPng({
   fontPath,
   fontFamily,
   fontDisplayName,
+  glyphBorderMode = "solid",
+  dotDensity = 1,
 }: TracingSheetOptions): Buffer {
   const safeDpi = clampDpi(dpi);
   GlobalFonts.registerFromPath(fontPath, fontFamily);
@@ -121,8 +148,8 @@ export function createTracingSheetPng({
       const totalWidth = upperWidth + lowerWidth + gap;
       const upperX = x0 + (cellWidth - totalWidth) / 2 - upperM.left;
       const lowerX = upperX + upperWidth + gap - lowerM.left;
-      drawOutlinedGlyph(context, upper, upperX, bottomLine, strokeWidth);
-      drawOutlinedGlyph(context, lower, lowerX, bottomLine, strokeWidth);
+      drawOutlinedGlyph(context, upper, upperX, bottomLine, strokeWidth, glyphBorderMode, dotDensity);
+      drawOutlinedGlyph(context, lower, lowerX, bottomLine, strokeWidth, glyphBorderMode, dotDensity);
     }
 
     y += rowHeight;
@@ -144,7 +171,7 @@ export function createTracingSheetPng({
       const numberM = getGlyphMetrics(context, number);
       const numberWidth = numberM.right - numberM.left;
       const numberX = x0 + (cellWidth - numberWidth) / 2 - numberM.left;
-      drawOutlinedGlyph(context, number, numberX, bottomLine, strokeWidth);
+      drawOutlinedGlyph(context, number, numberX, bottomLine, strokeWidth, glyphBorderMode, dotDensity);
     }
 
     y += rowHeight;
