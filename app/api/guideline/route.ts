@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 
 function sanitizeFontName(input: string): string {
   const normalized = input.replace(/[^a-zA-Z0-9 _-]/g, " ").replace(/\s+/g, " ").trim();
-  return normalized || "Tracing Font";
+  return normalized || "Font";
 }
 
 function parseDpi(value: FormDataEntryValue | null): number {
@@ -59,9 +59,9 @@ export async function POST(request: Request): Promise<Response> {
     const fontBuffer = Buffer.from(arrayBuffer);
     const fallbackName = path.basename(font.name, extension);
     const fontDisplayName = getDisplayNameFromBuffer(fontBuffer, fallbackName);
-    const fontFamily = `tracing-sheet-${randomUUID()}`;
+    const fontFamily = `guideline-${randomUUID()}`;
 
-    const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "tracing-sheet-"));
+    const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "guideline-"));
     const tempFontPath = path.join(tempDirectory, `${fontFamily}${extension}`);
 
     try {
@@ -75,7 +75,7 @@ export async function POST(request: Request): Promise<Response> {
       return new Response(new Uint8Array(pngBuffer), {
         headers: {
           "Content-Type": "image/png",
-          "Content-Disposition": 'attachment; filename="tracing-sheet.png"',
+          "Content-Disposition": 'attachment; filename="guideline.png"',
           "Cache-Control": "no-store",
         },
       });

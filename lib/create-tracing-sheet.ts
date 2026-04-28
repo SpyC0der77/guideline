@@ -64,7 +64,7 @@ export function createTracingSheetPng({
   const headerSize = Math.floor(safeDpi * 0.45);
   context.font = `${headerSize}px "${fontFamily}"`;
   context.fillStyle = "black";
-  const header = `${fontDisplayName} Tracing Sheet`;
+  const header = `${fontDisplayName} · Guideline`;
   const headerWidth = context.measureText(header).width;
   context.fillText(header, (pageWidth - headerWidth) / 2, y + headerSize);
   y += headerSize + Math.floor(margin / 2);

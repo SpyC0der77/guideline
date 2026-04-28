@@ -11,6 +11,20 @@ interface ApiErrorResponse {
 
 const DEFAULT_DPI = 300;
 
+function GuidelineMark({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" fill="none" aria-hidden>
+      <path
+        d="M 5 22 C 11 22, 19 12, 19 6 C 19 2, 13 2, 11 8 C 9 14, 9 26, 17 26 C 23 26, 27 22, 27 18"
+        stroke="currentColor"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function SoftPage() {
   const [fontFile, setFontFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,7 +84,7 @@ export default function SoftPage() {
     body.append("font", fontFile);
     body.append("dpi", String(DEFAULT_DPI));
     try {
-      const response = await fetch("/api/tracing-sheet", { method: "POST", body });
+      const response = await fetch("/api/guideline", { method: "POST", body });
       if (!response.ok) {
         const payload = (await response.json()) as ApiErrorResponse;
         setErrorMessage(payload.error ?? "Something fizzled. Try again?");
@@ -118,9 +132,9 @@ export default function SoftPage() {
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center px-8 pt-10">
         <div className="flex items-center gap-3 font-(family-name:--font-display-4) text-2xl">
           <span aria-hidden className="grid size-9 place-items-center rounded-full bg-[#3a2218] text-[#fff1e3]">
-            ✿
+            <GuidelineMark className="size-[1.35rem]" />
           </span>
-          <span className="italic">petal</span>
+          <span className="italic">Guideline</span>
         </div>
       </header>
 
@@ -135,7 +149,7 @@ export default function SoftPage() {
             <span aria-hidden className="text-[#e07a5f]">.</span>
           </h1>
           <p className="mt-6 max-w-md text-[1.05rem] leading-relaxed text-[#3a2218]/75">
-            Pick a typeface you wish your handwriting looked like. Petal lays every letter and number
+            Pick a typeface you wish your handwriting looked like. Guideline lays every letter and number
             onto a printable practice sheet — trace it, day by day, until your pen catches up.
           </p>
 
@@ -201,15 +215,9 @@ export default function SoftPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="group inline-flex items-center gap-3 rounded-full bg-[#3a2218] px-7 py-3.5 text-sm font-semibold text-[#fff1e3] shadow-[0_10px_30px_-10px_rgba(58,34,24,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e07a5f] disabled:opacity-40"
+              className="group inline-flex items-center justify-center rounded-full bg-[#3a2218] px-7 py-3.5 text-sm font-semibold text-[#fff1e3] shadow-[0_10px_30px_-10px_rgba(58,34,24,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e07a5f] disabled:opacity-40"
             >
               <span>{isLoading ? "Setting your practice sheet…" : "Make my practice sheet"}</span>
-              <span
-                aria-hidden
-                className="inline-block transition-transform group-hover:translate-x-1"
-              >
-                ✿
-              </span>
             </button>
           </form>
         </div>
@@ -283,7 +291,7 @@ export default function SoftPage() {
                   </div>
                 </div>
                 <p className="absolute inset-x-0 bottom-12 text-center text-sm font-medium text-[#3a2218]/45">
-                  Petal is sketching your letters…
+                  Guideline is sketching your letters…
                 </p>
               </div>
             ) : imageUrl ? (
@@ -291,7 +299,7 @@ export default function SoftPage() {
               <img
                 key={imageUrl}
                 src={imageUrl}
-                alt="Tracing sheet"
+                alt="Guideline practice sheet"
                 className="animate-practice-sheet-image-in motion-reduce:animate-none block h-auto w-full rounded-[20px]"
               />
             ) : (
@@ -322,7 +330,7 @@ export default function SoftPage() {
           >
             <a
               href={imageUrl || "#"}
-              download={imageUrl ? "tracing-sheet.png" : undefined}
+              download={imageUrl ? "guideline.png" : undefined}
               onClick={(e) => {
                 if (!imageUrl) e.preventDefault();
               }}

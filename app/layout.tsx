@@ -26,7 +26,7 @@ const body = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Petal — learn to write like a font",
+  title: "Guideline — learn to write like a font",
   description:
     "Pick any font and trace it until your handwriting matches. A gentle remedy for terrible penmanship.",
 };
