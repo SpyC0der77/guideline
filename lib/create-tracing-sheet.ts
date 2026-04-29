@@ -129,8 +129,8 @@ export function createTracingSheetPng({
   context.lineWidth = 1;
 
   for (const rowPairs of pairRows) {
-    const topLine = y + rowHeight * 0.25;
-    const bottomLine = y + rowHeight * 0.75;
+    const topLine = y + rowHeight * 0.35;
+    const bottomLine = y + rowHeight * 0.85;
     context.beginPath();
     context.moveTo(margin, topLine);
     context.lineTo(pageWidth - margin, topLine);
@@ -156,8 +156,9 @@ export function createTracingSheetPng({
   }
 
   for (const numbers of numberRows) {
-    const topLine = y + rowHeight * 0.25;
-    const bottomLine = y + rowHeight * 0.75;
+    const topLine = y + rowHeight * 0.35;
+    const bottomLine = y + rowHeight * 0.85;
+    const numberBaseline = bottomLine - rowHeight * 0.25;
     context.beginPath();
     context.moveTo(margin, topLine);
     context.lineTo(pageWidth - margin, topLine);
@@ -171,7 +172,7 @@ export function createTracingSheetPng({
       const numberM = getGlyphMetrics(context, number);
       const numberWidth = numberM.right - numberM.left;
       const numberX = x0 + (cellWidth - numberWidth) / 2 - numberM.left;
-      drawOutlinedGlyph(context, number, numberX, bottomLine, strokeWidth, glyphBorderMode, dotDensity);
+      drawOutlinedGlyph(context, number, numberX, numberBaseline, strokeWidth, glyphBorderMode, dotDensity);
     }
 
     y += rowHeight;

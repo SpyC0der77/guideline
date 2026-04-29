@@ -1,28 +1,6 @@
+import { POPULAR_GOOGLE_FONT_FAMILIES } from "@/lib/google-fonts";
+
 const GOOGLE_FONTS_METADATA_ENDPOINT = "https://fonts.google.com/metadata/fonts";
-const POPULAR_GOOGLE_FONT_FAMILIES = [
-  "Inter",
-  "DM Sans",
-  "Roboto",
-  "Open Sans",
-  "Lato",
-  "Montserrat",
-  "Poppins",
-  "Nunito",
-  "Raleway",
-  "Oswald",
-  "Playfair Display",
-  "Merriweather",
-  "Source Sans 3",
-  "Noto Sans",
-  "Arial",
-  "Comic Sans MS",
-  "Arimo",
-  "Comic Neue",
-  "Caveat",
-  "Kalam",
-  "Dancing Script",
-  "Patrick Hand",
-] as const;
 
 interface GoogleFontFamilyMetadata {
   family?: string;
@@ -30,10 +8,6 @@ interface GoogleFontFamilyMetadata {
 
 interface GoogleFontsMetadata {
   familyMetadataList?: GoogleFontFamilyMetadata[];
-}
-
-function parseQuery(value: string | null): string {
-  return value?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
 }
 
 async function getGoogleFontFamilies(): Promise<string[]> {
@@ -49,9 +23,7 @@ async function getGoogleFontFamilies(): Promise<string[]> {
 
   const text = await response.text();
   const payload = JSON.parse(text.replace(/^\)\]\}'\n?/, "")) as GoogleFontsMetadata;
-  return (payload.familyMetadataList ?? [])
-    .map((font) => font.family)
-    .filter((family): family is string => Boolean(family));
+  return payload.familyMetadataList?.flatMap((font) => (font.family ? [font.family] : [])) ?? [];
 }
 
 function sortFontFamilies(fontFamilies: string[], query: string): string[] {
@@ -78,13 +50,12 @@ function sortFontFamilies(fontFamilies: string[], query: string): string[] {
 export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const query = parseQuery(url.searchParams.get("query"));
+    const query = url.searchParams.get("query")?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
     const fontFamilies = await getGoogleFontFamilies();
-    const results = sortFontFamilies(fontFamilies, query);
 
     return Response.json(
       {
-        fonts: results,
+        fonts: sortFontFamilies(fontFamilies, query),
       },
       {
         headers: {

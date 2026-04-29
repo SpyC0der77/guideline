@@ -1,65 +1,61 @@
 "use client";
 
-import { File, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { File as FileIcon, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
+import { POPULAR_GOOGLE_FONT_FAMILIES } from "@/lib/google-fonts";
 import { cn } from "@/lib/utils";
-
-interface ApiErrorResponse {
-  error?: string;
-}
-
-interface GoogleFontsResponse {
-  fonts?: string[];
-}
 
 type GlyphBorderMode = "solid" | "dotted";
 type DotDensity = 1 | 2 | 3 | 4;
 type FontSource = "google" | "upload";
 
-interface GlyphBorderModeOption {
-  value: GlyphBorderMode;
-  label: string;
-  description: string;
+interface GoogleFontsResponse {
+  fonts: string[];
+}
+
+interface FontSourceTabsProps {
+  fontSource: FontSource;
+  onChange: (fontSource: FontSource) => void;
+}
+
+interface GoogleFontPickerProps {
+  query: string;
+  results: string[];
+  selectedFont: string;
+  isLoading: boolean;
+  onQueryChange: (query: string) => void;
+  onSelect: (fontFamily: string) => void;
+}
+
+interface UploadPickerProps {
+  fontFile: globalThis.File | null;
+  onChange: (fontFile: globalThis.File | null) => void;
+}
+
+interface AdvancedSettingsProps {
+  isOpen: boolean;
+  glyphBorderMode: GlyphBorderMode;
+  dotDensity: DotDensity;
+  onOpenChange: (isOpen: boolean) => void;
+  onGlyphBorderModeChange: (glyphBorderMode: GlyphBorderMode) => void;
+  onDotDensityChange: (dotDensity: DotDensity) => void;
+}
+
+interface PreviewCardProps {
+  imageUrl: string;
+  isLoading: boolean;
 }
 
 const DEFAULT_DPI = 300;
 const DEFAULT_DOT_DENSITY: DotDensity = 1;
-const POPULAR_GOOGLE_FONT_FAMILIES = [
-  "Inter",
-  "DM Sans",
-  "Roboto",
-  "Open Sans",
-  "Lato",
-  "Montserrat",
-  "Poppins",
-  "Nunito",
-  "Raleway",
-  "Oswald",
-  "Playfair Display",
-  "Merriweather",
-  "Source Sans 3",
-  "Noto Sans",
-  "Arial",
-  "Comic Sans MS",
-  "Arimo",
-  "Comic Neue",
-  "Caveat",
-  "Kalam",
-  "Dancing Script",
-  "Patrick Hand",
-] as const;
-const GLYPH_BORDER_MODE_OPTIONS: GlyphBorderModeOption[] = [
-  {
-    value: "solid",
-    label: "Solid",
-    description: "continuous outlines",
-  },
-  {
-    value: "dotted",
-    label: "Dotted",
-    description: "dotted outlines",
-  },
+const GLYPH_BORDER_OPTIONS: Array<{
+  value: GlyphBorderMode;
+  label: string;
+  description: string;
+}> = [
+  { value: "solid", label: "Solid", description: "continuous outlines" },
+  { value: "dotted", label: "Dotted", description: "dotted outlines" },
 ];
 const DOT_DENSITY_LABELS: Record<DotDensity, string> = {
   1: "Sparse",
@@ -67,6 +63,16 @@ const DOT_DENSITY_LABELS: Record<DotDensity, string> = {
   3: "Dense",
   4: "Tight",
 };
+const SKELETON_ROWS = [
+  "w-[92%]",
+  "w-[76%]",
+  "w-[84%]",
+  "w-[71%]",
+  "w-[88%]",
+  "w-[81%]",
+  "w-[79%]",
+  "w-[86%]",
+] as const;
 
 function GuidelineMark({ className }: { className?: string }) {
   return (
@@ -82,7 +88,15 @@ function GuidelineMark({ className }: { className?: string }) {
   );
 }
 
-export default function SoftPage() {
+function cleanFontQuery(query: string) {
+  return query.replace(/\s+/g, " ").trim();
+}
+
+function isDotDensity(value: number): value is DotDensity {
+  return value === 1 || value === 2 || value === 3 || value === 4;
+}
+
+export default function GuidelinePage() {
   const [fontSource, setFontSource] = useState<FontSource>("google");
   const [googleFontQuery, setGoogleFontQuery] = useState("");
   const [googleFontResults, setGoogleFontResults] = useState<string[]>([
@@ -90,83 +104,59 @@ export default function SoftPage() {
   ]);
   const [selectedGoogleFont, setSelectedGoogleFont] = useState("Inter");
   const [isGoogleFontsLoading, setIsGoogleFontsLoading] = useState(false);
-  const [fontFile, setFontFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [fontFile, setFontFile] = useState<globalThis.File | null>(null);
   const [glyphBorderMode, setGlyphBorderMode] = useState<GlyphBorderMode>("solid");
   const [dotDensity, setDotDensity] = useState<DotDensity>(DEFAULT_DOT_DENSITY);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const dragDepth = useRef(0);
-  const imageUrl = useMemo(() => (imageBlob ? URL.createObjectURL(imageBlob) : ""), [imageBlob]);
-  const customGoogleFont = useMemo(() => googleFontQuery.replace(/\s+/g, " ").trim(), [googleFontQuery]);
-  const canUseCustomGoogleFont =
-    /^[a-zA-Z0-9 ]{1,80}$/.test(customGoogleFont) &&
-    !googleFontResults.some((fontFamily) => fontFamily.toLowerCase() === customGoogleFont.toLowerCase());
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
 
-  useEffect(() => () => {
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
+  const imageUrl = useMemo(() => (imageBlob ? URL.createObjectURL(imageBlob) : ""), [imageBlob]);
+
+  useEffect(() => {
+    return () => {
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+    };
   }, [imageUrl]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let isCurrent = true;
     const timeout = window.setTimeout(async () => {
       setIsGoogleFontsLoading(true);
-      try {
-        const params = new URLSearchParams();
-        if (googleFontQuery.trim()) params.set("query", googleFontQuery.trim());
-        const response = await fetch(`/api/google-fonts?${params.toString()}`, {
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as GoogleFontsResponse;
-        if (!controller.signal.aborted) {
-          setGoogleFontResults(payload.fonts?.length ? payload.fonts : []);
-        }
-      } catch {
-        if (!controller.signal.aborted) setGoogleFontResults([...POPULAR_GOOGLE_FONT_FAMILIES]);
-      } finally {
-        if (!controller.signal.aborted) setIsGoogleFontsLoading(false);
+
+      const params = new URLSearchParams();
+      const query = cleanFontQuery(googleFontQuery);
+      if (query) params.set("query", query);
+
+      const response = await fetch(`/api/google-fonts?${params.toString()}`);
+      const payload = (await response.json()) as GoogleFontsResponse;
+
+      if (isCurrent) {
+        setGoogleFontResults(payload.fonts);
+        setIsGoogleFontsLoading(false);
       }
-    }, googleFontQuery.trim() ? 220 : 0);
+    }, cleanFontQuery(googleFontQuery) ? 220 : 0);
 
     return () => {
-      controller.abort();
+      isCurrent = false;
       window.clearTimeout(timeout);
     };
   }, [googleFontQuery]);
 
-  function handleDragEnter(event: React.DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    dragDepth.current += 1;
-    setIsDragOver(true);
+  function clearSheet() {
+    setErrorMessage("");
+    setImageBlob(null);
   }
 
-  function handleDragLeave(event: React.DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    dragDepth.current -= 1;
-    if (dragDepth.current <= 0) {
-      dragDepth.current = 0;
-      setIsDragOver(false);
-    }
+  function handleFontSourceChange(nextFontSource: FontSource) {
+    setFontSource(nextFontSource);
+    clearSheet();
   }
 
-  function handleDragOver(event: React.DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    dragDepth.current = 0;
-    setIsDragOver(false);
-    const dropped = event.dataTransfer.files?.[0];
-    if (!dropped) return;
-    const lower = dropped.name.toLowerCase();
-    if (lower.endsWith(".ttf") || lower.endsWith(".otf")) setFontFile(dropped);
+  function handleGoogleFontSelect(fontFamily: string) {
+    setSelectedGoogleFont(fontFamily);
+    clearSheet();
   }
 
   function handleGlyphBorderModeChange(nextGlyphBorderMode: GlyphBorderMode) {
@@ -174,70 +164,118 @@ export default function SoftPage() {
     setImageBlob(null);
   }
 
-  function handleFontSourceChange(nextFontSource: FontSource) {
-    setFontSource(nextFontSource);
-    setErrorMessage("");
+  function handleDotDensityChange(nextDotDensity: DotDensity) {
+    setDotDensity(nextDotDensity);
     setImageBlob(null);
-  }
-
-  function handleGoogleFontSelect(nextGoogleFont: string) {
-    setSelectedGoogleFont(nextGoogleFont);
-    setErrorMessage("");
-    setImageBlob(null);
-  }
-
-  function handleDotDensityChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const nextDotDensity = Number.parseInt(event.target.value, 10);
-    if (nextDotDensity === 1 || nextDotDensity === 2 || nextDotDensity === 3 || nextDotDensity === 4) {
-      setDotDensity(nextDotDensity);
-      setImageBlob(null);
-    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const googleFontFamily = selectedGoogleFont.trim();
-    if (fontSource === "google" && !googleFontFamily) {
+
+    if (fontSource === "google" && !selectedGoogleFont.trim()) {
       setErrorMessage("Pick a Google Font first.");
       return;
     }
+
     if (fontSource === "upload" && !fontFile) {
-      setErrorMessage("Pop a font file in first — any .ttf or .otf will do.");
+      setErrorMessage("Pop a font file in first. Any .ttf or .otf will do.");
       return;
     }
-    setIsLoading(true);
-    setErrorMessage("");
-    setImageBlob(null);
+
     const body = new FormData();
     body.append("fontSource", fontSource);
-    if (fontSource === "google") body.append("googleFontFamily", googleFontFamily);
-    if (fontSource === "upload" && fontFile) body.append("font", fontFile);
     body.append("dpi", String(DEFAULT_DPI));
     body.append("glyphBorderMode", glyphBorderMode);
     body.append("dotDensity", String(dotDensity));
-    try {
-      const response = await fetch("/api/guideline", { method: "POST", body });
-      if (!response.ok) {
-        const payload = (await response.json()) as ApiErrorResponse;
-        setErrorMessage(payload.error ?? "Something fizzled. Try again?");
-        return;
-      }
+    if (fontSource === "google") body.append("googleFontFamily", selectedGoogleFont.trim());
+    if (fontSource === "upload" && fontFile) body.append("font", fontFile);
+
+    setIsLoading(true);
+    setErrorMessage("");
+    setImageBlob(null);
+
+    const response = await fetch("/api/guideline", { method: "POST", body });
+    if (response.ok) {
       setImageBlob(await response.blob());
-    } catch {
-      setErrorMessage("Couldn't reach the server.");
-    } finally {
-      setIsLoading(false);
+    } else {
+      setErrorMessage("Unable to make that practice sheet.");
     }
+
+    setIsLoading(false);
   }
 
   return (
     <main
       className="relative flex min-h-screen w-full flex-1 flex-col overflow-hidden font-(family-name:--font-body-4) text-[#3a2218]"
       style={{
-        background:
-          "linear-gradient(160deg, #fff1e3 0%, #ffd9c2 45%, #f7c8d6 100%)",
+        background: "linear-gradient(160deg, #fff1e3 0%, #ffd9c2 45%, #f7c8d6 100%)",
       }}
     >
+      <BackgroundShapes />
+      <Header />
+
+      <section className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-center gap-12 px-8 py-16 lg:grid-cols-2">
+        <div>
+          <HeroCopy />
+
+          <form onSubmit={handleSubmit} className="mt-10 max-w-md space-y-6">
+            <div className="rounded-2xl border border-[#3a2218]/18 bg-white/55 p-2 text-sm">
+              <FontSourceTabs fontSource={fontSource} onChange={handleFontSourceChange} />
+
+              {fontSource === "google" ? (
+                <GoogleFontPicker
+                  query={googleFontQuery}
+                  results={googleFontResults}
+                  selectedFont={selectedGoogleFont}
+                  isLoading={isGoogleFontsLoading}
+                  onQueryChange={setGoogleFontQuery}
+                  onSelect={handleGoogleFontSelect}
+                />
+              ) : (
+                <UploadPicker
+                  fontFile={fontFile}
+                  onChange={(nextFontFile) => {
+                    setFontFile(nextFontFile);
+                    setImageBlob(null);
+                  }}
+                />
+              )}
+            </div>
+
+            <AdvancedSettings
+              isOpen={isAdvancedOpen}
+              glyphBorderMode={glyphBorderMode}
+              dotDensity={dotDensity}
+              onOpenChange={setIsAdvancedOpen}
+              onGlyphBorderModeChange={handleGlyphBorderModeChange}
+              onDotDensityChange={handleDotDensityChange}
+            />
+
+            {errorMessage ? (
+              <p className="rounded-2xl bg-[#ffe1d6] px-4 py-2 text-sm text-[#7a2f1c]">
+                {errorMessage}
+              </p>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group inline-flex items-center justify-center rounded-full bg-[#3a2218] px-7 py-3.5 text-sm font-semibold text-[#fff1e3] shadow-[0_10px_30px_-10px_rgba(58,34,24,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e07a5f] disabled:opacity-40"
+            >
+              <span>{isLoading ? "Setting your practice sheet..." : "Make my practice sheet"}</span>
+            </button>
+          </form>
+        </div>
+
+        <PreviewCard imageUrl={imageUrl} isLoading={isLoading} />
+      </section>
+    </main>
+  );
+}
+
+function BackgroundShapes() {
+  return (
+    <>
       <svg
         aria-hidden
         className="pointer-events-none absolute -top-24 -left-24 h-112 w-md opacity-70 blur-[1px]"
@@ -251,7 +289,7 @@ export default function SoftPage() {
       </svg>
       <svg
         aria-hidden
-        className="pointer-events-none absolute -bottom-32 -right-32 h-136 w-136 opacity-60 blur-[2px]"
+        className="pointer-events-none absolute -right-32 -bottom-32 h-136 w-136 opacity-60 blur-[2px]"
         viewBox="0 0 200 200"
       >
         <path
@@ -260,438 +298,448 @@ export default function SoftPage() {
           transform="translate(100 100)"
         />
       </svg>
+    </>
+  );
+}
 
-      <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center px-8 pt-10">
-        <div className="flex items-center gap-3 font-(family-name:--font-display-4) text-2xl">
-          <span aria-hidden className="grid size-9 place-items-center rounded-full bg-[#3a2218] text-[#fff1e3]">
-            <GuidelineMark className="size-[1.35rem]" />
-          </span>
-          <span className="italic">Guideline</span>
-        </div>
-      </header>
+function Header() {
+  return (
+    <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center px-8 pt-10">
+      <div className="flex items-center gap-3 font-(family-name:--font-display-4) text-2xl">
+        <span aria-hidden className="grid size-9 place-items-center rounded-full bg-[#3a2218] text-[#fff1e3]">
+          <GuidelineMark className="size-[1.35rem]" />
+        </span>
+        <span className="italic">Guideline</span>
+      </div>
+    </header>
+  );
+}
 
-      <section className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-center gap-12 px-8 py-16 lg:grid-cols-2">
-        <div>
-          <h1 className="font-(family-name:--font-display-4) text-[clamp(3rem,8vw,6rem)] leading-[0.95]">
-            Write like a
-            <br />
-            <span className="italic font-medium" style={{ fontVariationSettings: "'SOFT' 100, 'WONK' 1" }}>
-              font
-            </span>
-            <span aria-hidden className="text-[#e07a5f]">.</span>
-          </h1>
-          <p className="mt-6 max-w-md text-[1.05rem] leading-relaxed text-[#3a2218]/75">
-            Pick a typeface you wish your handwriting looked like. Guideline lays every letter and number
-            onto a printable practice sheet — trace it, day by day, until your pen catches up.
+function HeroCopy() {
+  return (
+    <>
+      <h1 className="font-(family-name:--font-display-4) text-[clamp(3rem,8vw,6rem)] leading-[0.95]">
+        Write like a
+        <br />
+        <span className="font-medium italic" style={{ fontVariationSettings: "'SOFT' 100, 'WONK' 1" }}>
+          font
+        </span>
+        <span aria-hidden className="text-[#e07a5f]">.</span>
+      </h1>
+      <p className="mt-6 max-w-md text-[1.05rem] leading-relaxed text-[#3a2218]/75">
+        Pick a typeface you wish your handwriting looked like. Guideline lays every letter and number
+        onto a printable practice sheet. Trace it, day by day, until your pen catches up.
+      </p>
+    </>
+  );
+}
+
+function FontSourceTabs({ fontSource, onChange }: FontSourceTabsProps) {
+  return (
+    <div className="relative grid grid-cols-2 border-b border-[#3a2218]/12">
+      <span
+        aria-hidden
+        className={cn(
+          "absolute bottom-0 left-0 h-0.5 w-1/2 bg-[#3a2218] transition-transform duration-200 ease-out motion-reduce:transition-none",
+          fontSource === "upload" && "translate-x-full",
+        )}
+      />
+      {(["google", "upload"] as const).map((source) => (
+        <button
+          key={source}
+          type="button"
+          onClick={() => onChange(source)}
+          className={cn(
+            "relative z-10 px-3 py-2.5 text-center font-semibold transition-colors duration-200",
+            fontSource === source
+              ? "text-[#3a2218]"
+              : "text-[#3a2218]/55 hover:text-[#3a2218]",
+          )}
+          aria-pressed={fontSource === source}
+        >
+          {source === "google" ? "Google Fonts" : "Upload"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GoogleFontPicker({
+  query,
+  results,
+  selectedFont,
+  isLoading,
+  onQueryChange,
+  onSelect,
+}: GoogleFontPickerProps) {
+  const customFont = cleanFontQuery(query);
+  const canUseCustomFont =
+    /^[a-zA-Z0-9 ]{1,80}$/.test(customFont) &&
+    !results.some((fontFamily) => fontFamily.toLowerCase() === customFont.toLowerCase());
+
+  return (
+    <div className="flex h-96 flex-col gap-3 px-2 py-4">
+      <label htmlFor="google-font-search" className="font-medium text-[#3a2218]">
+        Search Google Fonts
+      </label>
+      <div className="flex items-center gap-2 rounded-xl border border-[#3a2218]/18 bg-white/80 px-3 py-2 focus-within:ring-2 focus-within:ring-[#e07a5f]/35">
+        <Search className="size-4 shrink-0 text-[#3a2218]/55" strokeWidth={1.75} />
+        <input
+          id="google-font-search"
+          type="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Try Inter, DM Sans, Arial..."
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#3a2218]/40"
+        />
+      </div>
+
+      <div className="scrollbar-none grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto pr-1">
+        {canUseCustomFont ? (
+          <FontButton
+            className="col-span-2"
+            fontFamily={`Use "${customFont}"`}
+            isSelected={selectedFont === customFont}
+            onClick={() => onSelect(customFont)}
+          />
+        ) : null}
+
+        {results.map((fontFamily) => (
+          <FontButton
+            key={fontFamily}
+            fontFamily={fontFamily}
+            isSelected={selectedFont === fontFamily}
+            onClick={() => onSelect(fontFamily)}
+          />
+        ))}
+      </div>
+
+      <div className="h-4">
+        {isLoading ? (
+          <p className="text-xs text-[#3a2218]/60">Searching Google Fonts...</p>
+        ) : results.length === 0 ? (
+          <p className="text-xs text-[#3a2218]/60">
+            Google will check the exact family name when you make the sheet.
           </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
-          <form onSubmit={handleSubmit} className="mt-10 max-w-md space-y-6">
-            <div className="rounded-2xl border border-[#3a2218]/18 bg-white/55 p-2 text-sm">
-              <div className="grid grid-cols-2 border-b border-[#3a2218]/12">
-                <button
-                  type="button"
-                  onClick={() => handleFontSourceChange("google")}
-                  className={cn(
-                    "px-3 py-2.5 text-center font-semibold transition-colors",
-                    fontSource === "google"
-                      ? "border-b-2 border-[#3a2218] text-[#3a2218]"
-                      : "text-[#3a2218]/55 hover:text-[#3a2218]",
-                  )}
-                  aria-pressed={fontSource === "google"}
-                >
-                  Google Fonts
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFontSourceChange("upload")}
-                  className={cn(
-                    "px-3 py-2.5 text-center font-semibold transition-colors",
-                    fontSource === "upload"
-                      ? "border-b-2 border-[#3a2218] text-[#3a2218]"
-                      : "text-[#3a2218]/55 hover:text-[#3a2218]",
-                  )}
-                  aria-pressed={fontSource === "upload"}
-                >
-                  Upload
-                </button>
-              </div>
+function FontButton({
+  className,
+  fontFamily,
+  isSelected,
+  onClick,
+}: {
+  className?: string;
+  fontFamily: string;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-xl border bg-white/70 px-3 py-2 text-left transition-colors",
+        isSelected
+          ? "border-[#3a2218] text-[#3a2218]"
+          : "border-[#3a2218]/14 text-[#3a2218]/65 hover:border-[#3a2218]/40",
+        className,
+      )}
+    >
+      <span className="block truncate font-semibold">{fontFamily}</span>
+    </button>
+  );
+}
 
-              {fontSource === "google" ? (
-                <div className="flex h-96 flex-col gap-3 px-2 py-4">
-                  <label htmlFor="google-font-search" className="font-medium text-[#3a2218]">
-                    Search Google Fonts
-                  </label>
-                  <div className="flex items-center gap-2 rounded-xl border border-[#3a2218]/18 bg-white/80 px-3 py-2 focus-within:ring-2 focus-within:ring-[#e07a5f]/35">
-                    <Search className="size-4 shrink-0 text-[#3a2218]/55" strokeWidth={1.75} />
-                    <input
-                      id="google-font-search"
-                      type="search"
-                      value={googleFontQuery}
-                      onChange={(event) => setGoogleFontQuery(event.target.value)}
-                      placeholder="Try Inter, DM Sans, Arial..."
-                      className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#3a2218]/40"
-                    />
-                  </div>
-                  <div className="scrollbar-none grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto pr-1">
-                    {canUseCustomGoogleFont ? (
-                      <button
-                        type="button"
-                        onClick={() => handleGoogleFontSelect(customGoogleFont)}
-                        className={cn(
-                          "col-span-2 rounded-xl border bg-white/70 px-3 py-2 text-left transition-colors",
-                          selectedGoogleFont === customGoogleFont
-                            ? "border-[#3a2218] text-[#3a2218]"
-                            : "border-[#3a2218]/14 text-[#3a2218]/65 hover:border-[#3a2218]/40",
-                        )}
-                      >
-                        <span className="block truncate font-semibold">
-                          Use &quot;{customGoogleFont}&quot;
-                        </span>
-                      </button>
-                    ) : null}
-                    {googleFontResults.map((fontFamily) => {
-                      const isSelected = selectedGoogleFont === fontFamily;
+function UploadPicker({ fontFile, onChange }: UploadPickerProps) {
+  const [isDragOver, setIsDragOver] = useState(false);
 
-                      return (
-                        <button
-                          key={fontFamily}
-                          type="button"
-                          onClick={() => handleGoogleFontSelect(fontFamily)}
-                          className={cn(
-                            "rounded-xl border bg-white/70 px-3 py-2 text-left transition-colors",
-                            isSelected
-                              ? "border-[#3a2218] text-[#3a2218]"
-                              : "border-[#3a2218]/14 text-[#3a2218]/65 hover:border-[#3a2218]/40",
-                          )}
-                        >
-                          <span className="block truncate font-semibold">{fontFamily}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="h-4">
-                    {isGoogleFontsLoading ? (
-                      <p className="text-xs text-[#3a2218]/60">Searching Google Fonts...</p>
-                    ) : googleFontResults.length === 0 ? (
-                      <p className="text-xs text-[#3a2218]/60">
-                        Google will check the exact family name when you make the sheet.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex h-96 items-start px-2 py-4">
-                  <label
-                    htmlFor="font-upload"
-                    className="block w-full cursor-pointer"
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
-                  >
-                    <span
-                      className={cn(
-                        "group/upload relative flex items-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed border-[#3a2218]/30 bg-white/70 px-5 py-4 text-sm",
-                        "transition-all duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]",
-                        "hover:border-[#e07a5f]/85 hover:bg-white",
-                        !fontFile && !isDragOver && "animate-upload-zone-breathe",
-                        isDragOver &&
-                          "scale-[1.02] border-solid border-[#e07a5f] bg-white ring-4 ring-[#e07a5f]/25",
-                      )}
-                    >
-                      {!fontFile ? (
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "animate-upload-dash-march pointer-events-none absolute inset-0 rounded-2xl opacity-[0.08] transition-opacity duration-300",
-                            "group-hover/upload:opacity-[0.16]",
-                            isDragOver && "opacity-30",
-                          )}
-                        />
-                      ) : null}
-                      <span
-                        aria-hidden
-                        className="relative inline-flex shrink-0 items-center justify-center transition-transform duration-300 group-hover/upload:scale-[1.03] animate-whimsical-paper-float motion-reduce:animate-none"
-                      >
-                        <File className="size-6 text-[#3a2218]" strokeWidth={1.75} />
-                      </span>
-                      <span className="relative min-w-0 flex-1 truncate">
-                        {fontFile?.name ??
-                          (isDragOver ? "Let go — I’ve got it!" : "Drop in a .ttf or .otf")}
-                      </span>
-                      <span className="relative rounded-xl bg-[#3a2218] px-3 py-1 text-xs text-[#fff1e3] shadow-sm">
-                        browse
-                      </span>
-                      <input
-                        id="font-upload"
-                        type="file"
-                        accept=".ttf,.otf,font/ttf,font/otf"
-                        aria-label="Choose a font file (.ttf or .otf)"
-                        onChange={(event) => {
-                          setFontFile(event.target.files?.[0] ?? null);
-                          setImageBlob(null);
-                        }}
-                        className="sr-only"
-                      />
-                    </span>
-                  </label>
-                </div>
-              )}
-            </div>
+  function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDragOver(false);
+    onChange(event.dataTransfer.files[0] ?? null);
+  }
 
-            <div className="rounded-2xl border border-[#3a2218]/18 bg-white/50 px-4 py-3 text-sm">
-              <button
-                type="button"
-                aria-expanded={isAdvancedOpen}
-                aria-controls="advanced-settings"
-                onClick={() => setIsAdvancedOpen((isOpen) => !isOpen)}
-                className="flex w-full items-center justify-between gap-3 text-left font-semibold text-[#3a2218]"
-              >
-                <span>Advanced</span>
-                <span
-                  aria-hidden
-                  className={cn(
-                    "transition-transform duration-200 motion-reduce:transition-none",
-                    isAdvancedOpen && "rotate-180",
-                  )}
-                >
-                  v
-                </span>
-              </button>
-              <div
-                id="advanced-settings"
-                aria-hidden={!isAdvancedOpen}
-                className={cn(
-                  "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
-                  isAdvancedOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-                )}
-              >
-                <div className="overflow-hidden">
-                  <div className="mt-4 space-y-4">
-                    <fieldset className="space-y-2">
-                      <legend className="text-sm font-semibold text-[#3a2218]">Glyph border</legend>
-                      <div className="grid grid-cols-2 gap-2">
-                        {GLYPH_BORDER_MODE_OPTIONS.map((option) => {
-                          const isSelected = glyphBorderMode === option.value;
-
-                          return (
-                            <label
-                              key={option.value}
-                              className={cn(
-                                "cursor-pointer rounded-2xl border bg-white/70 px-4 py-3 text-sm transition-colors",
-                                "focus-within:ring-2 focus-within:ring-[#e07a5f]/45 focus-within:ring-offset-2 focus-within:ring-offset-[#fff1e3]",
-                                isSelected
-                                  ? "border-[#3a2218] text-[#3a2218]"
-                                  : "border-[#3a2218]/18 text-[#3a2218]/65 hover:border-[#3a2218]/45",
-                              )}
-                            >
-                              <input
-                                type="radio"
-                                name="glyph-border-mode"
-                                value={option.value}
-                                checked={isSelected}
-                                disabled={!isAdvancedOpen}
-                                onChange={() => handleGlyphBorderModeChange(option.value)}
-                                className="sr-only"
-                              />
-                              <span className="block font-semibold">{option.label}</span>
-                              <span className="mt-0.5 block text-xs">{option.description}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </fieldset>
-
-                    <div className="flex items-baseline justify-between gap-3">
-                      <label htmlFor="dot-density" className="font-medium text-[#3a2218]">
-                        Dot density
-                      </label>
-                      <span className="text-xs text-[#3a2218]/60">{DOT_DENSITY_LABELS[dotDensity]}</span>
-                    </div>
-                    <input
-                      id="dot-density"
-                      type="range"
-                      min="1"
-                      max="4"
-                      step="1"
-                      value={dotDensity}
-                      disabled={!isAdvancedOpen || glyphBorderMode !== "dotted"}
-                      onChange={handleDotDensityChange}
-                      className="w-full accent-[#3a2218] disabled:opacity-40"
-                    />
-                    <div className="flex justify-between text-xs text-[#3a2218]/55">
-                      <span>Sparser</span>
-                      <span>Denser</span>
-                    </div>
-                    <p className="text-xs leading-relaxed text-[#3a2218]/60">
-                      Applies only when the glyph border is set to dotted.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {errorMessage ? (
-              <p className="rounded-2xl bg-[#ffe1d6] px-4 py-2 text-sm text-[#7a2f1c]">
-                {errorMessage}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group inline-flex items-center justify-center rounded-full bg-[#3a2218] px-7 py-3.5 text-sm font-semibold text-[#fff1e3] shadow-[0_10px_30px_-10px_rgba(58,34,24,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e07a5f] disabled:opacity-40"
-            >
-              <span>{isLoading ? "Setting your practice sheet…" : "Make my practice sheet"}</span>
-            </button>
-          </form>
-        </div>
-
-        <div className="relative">
-          <div
-            className={cn(
-              "relative mx-auto w-full max-w-md rounded-[28px] bg-white p-3",
-              "shadow-[0_30px_60px_-20px_rgba(58,34,24,0.35)] ring-1 ring-[#3a2218]/4",
-              "animate-practice-sheet-sway motion-reduce:animate-none",
-            )}
-          >
+  return (
+    <div className="flex h-96 px-2 py-4">
+      <label
+        htmlFor="font-upload"
+        className="block h-full w-full cursor-pointer"
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setIsDragOver(true);
+        }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
+      >
+        <span
+          className={cn(
+            "group/upload relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden rounded-2xl border-2 border-dashed border-[#3a2218]/30 bg-white/70 px-6 py-8 text-center text-sm",
+            "transition-all duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)] hover:border-[#e07a5f]/85 hover:bg-white",
+            !fontFile && !isDragOver && "animate-upload-zone-breathe",
+            isDragOver && "scale-[1.02] border-solid border-[#e07a5f] bg-white ring-4 ring-[#e07a5f]/25",
+          )}
+        >
+          {!fontFile ? (
             <span
               aria-hidden
               className={cn(
-                "absolute -top-3 left-1/2 h-6 w-24 rounded-full bg-[#fff1e3]/90 [box-shadow:inset_0_0_0_1px_rgba(58,34,24,0.15)]",
-                "animate-practice-sheet-pin",
-                "motion-reduce:-translate-x-1/2 motion-reduce:animate-none",
+                "animate-upload-dash-march pointer-events-none absolute inset-0 rounded-2xl opacity-[0.08] transition-opacity duration-300 group-hover/upload:opacity-[0.16]",
+                isDragOver && "opacity-30",
               )}
             />
-            {isLoading ? (
-              <div
-                className="relative aspect-8.5/11 w-full overflow-hidden rounded-[20px]"
-                style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(0deg, transparent 0 36px, rgba(58,34,24,0.07) 36px 37px)",
-                  backgroundColor: "#faf5ee",
-                }}
-                role="status"
-                aria-live="polite"
-                aria-busy
-                aria-label="Drawing your practice sheet"
-              >
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 overflow-hidden rounded-[20px]"
-                >
-                  <div
+          ) : null}
+          <span
+            aria-hidden
+            className="relative inline-flex size-12 shrink-0 animate-whimsical-paper-float items-center justify-center rounded-xl bg-[#fff1e3] transition-transform duration-300 group-hover/upload:scale-[1.03] motion-reduce:animate-none"
+          >
+            <FileIcon className="size-7 text-[#3a2218]" strokeWidth={1.75} />
+          </span>
+          <span className="relative max-w-full truncate text-base font-semibold">
+            {fontFile?.name ?? (isDragOver ? "Let go. I've got it!" : "Drop in a .ttf or .otf")}
+          </span>
+          <span className="relative rounded-xl bg-[#3a2218] px-3 py-1 text-xs text-[#fff1e3] shadow-sm">
+            browse
+          </span>
+          <input
+            id="font-upload"
+            type="file"
+            accept=".ttf,.otf,font/ttf,font/otf"
+            aria-label="Choose a font file (.ttf or .otf)"
+            onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+            className="sr-only"
+          />
+        </span>
+      </label>
+    </div>
+  );
+}
+
+function AdvancedSettings({
+  isOpen,
+  glyphBorderMode,
+  dotDensity,
+  onOpenChange,
+  onGlyphBorderModeChange,
+  onDotDensityChange,
+}: AdvancedSettingsProps) {
+  return (
+    <div className="rounded-2xl border border-[#3a2218]/18 bg-white/50 px-4 py-3 text-sm">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls="advanced-settings"
+        onClick={() => onOpenChange(!isOpen)}
+        className="flex w-full items-center justify-between gap-3 text-left font-semibold text-[#3a2218]"
+      >
+        <span>Advanced</span>
+        <span
+          aria-hidden
+          className={cn("transition-transform duration-200 motion-reduce:transition-none", isOpen && "rotate-180")}
+        >
+          v
+        </span>
+      </button>
+
+      <div
+        id="advanced-settings"
+        aria-hidden={!isOpen}
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+          isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="mt-4 space-y-4">
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold text-[#3a2218]">Glyph border</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {GLYPH_BORDER_OPTIONS.map((option) => (
+                  <label
+                    key={option.value}
                     className={cn(
-                      "absolute -inset-y-6 -left-1/3 w-[55%]",
-                      "bg-linear-to-br from-transparent via-[#fffefb]/95 to-transparent",
-                      "animate-practice-skeleton-shimmer motion-reduce:animate-none",
-                      "opacity-[0.93]",
-                    )}
-                  />
-                  <div
-                    aria-hidden
-                    className="absolute inset-x-10 top-[12%] h-10 rounded-full bg-[#3a2218]/6"
-                  />
-                  <div aria-hidden className="absolute inset-x-10 top-[34%] space-y-[22px]">
-                    {(
-                      [
-                        "w-[92%]",
-                        "w-[76%]",
-                        "w-[84%]",
-                        "w-[71%]",
-                        "w-[88%]",
-                        "w-[81%]",
-                        "w-[79%]",
-                        "w-[86%]",
-                      ] as const
-                    ).map((lineClass, idx) => (
-                      <div
-                        key={`skeleton-row-${idx}`}
-                        className={cn(
-                          "h-[10px] rounded-full bg-[#3a2218]/5",
-                          lineClass,
-                        )}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <p className="absolute inset-x-0 bottom-12 text-center text-sm font-medium text-[#3a2218]/45">
-                  Guideline is sketching your letters…
-                </p>
-              </div>
-            ) : imageUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                key={imageUrl}
-                src={imageUrl}
-                alt="Guideline practice sheet"
-                className="animate-practice-sheet-image-in motion-reduce:animate-none block h-auto w-full rounded-[20px]"
-                // Preview-only contrast boost. The downloaded PNG remains the original blob.
-                style={{ filter: "brightness(0.82) contrast(1.85)" }}
-              />
-            ) : (
-              <div
-                className="grid aspect-8.5/11 w-full place-items-center rounded-[20px]"
-                style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(0deg, transparent 0 36px, rgba(58,34,24,0.08) 36px 37px)",
-                  backgroundColor: "#fffaf2",
-                }}
-              >
-                <div className="text-center">
-                  <div
-                    className={cn(
-                      "font-(family-name:--font-display-4) text-[7rem] italic leading-none text-[#e07a5f]",
-                      "animate-practice-sheet-placeholder motion-reduce:animate-none",
+                      "cursor-pointer rounded-2xl border bg-white/70 px-4 py-3 text-sm transition-colors",
+                      "focus-within:ring-2 focus-within:ring-[#e07a5f]/45 focus-within:ring-offset-2 focus-within:ring-offset-[#fff1e3]",
+                      glyphBorderMode === option.value
+                        ? "border-[#3a2218] text-[#3a2218]"
+                        : "border-[#3a2218]/18 text-[#3a2218]/65 hover:border-[#3a2218]/45",
                     )}
                   >
-                    Aa
-                  </div>
-                  <p className="mt-2 text-sm text-[#3a2218]/60">your practice sheet appears here</p>
-                </div>
+                    <input
+                      type="radio"
+                      name="glyph-border-mode"
+                      value={option.value}
+                      checked={glyphBorderMode === option.value}
+                      disabled={!isOpen}
+                      onChange={() => onGlyphBorderModeChange(option.value)}
+                      className="sr-only"
+                    />
+                    <span className="block font-semibold">{option.label}</span>
+                    <span className="mt-0.5 block text-xs">{option.description}</span>
+                  </label>
+                ))}
               </div>
-            )}
-          </div>
-          <div
-            className="mt-6 flex min-h-11.5 items-center justify-center"
-          >
-            <a
-              href={imageUrl || "#"}
-              download={imageUrl ? "guideline.png" : undefined}
-              onClick={(e) => {
-                if (!imageUrl) e.preventDefault();
+            </fieldset>
+
+            <div className="flex items-baseline justify-between gap-3">
+              <label htmlFor="dot-density" className="font-medium text-[#3a2218]">
+                Dot density
+              </label>
+              <span className="text-xs text-[#3a2218]/60">{DOT_DENSITY_LABELS[dotDensity]}</span>
+            </div>
+            <input
+              id="dot-density"
+              type="range"
+              min="1"
+              max="4"
+              step="1"
+              value={dotDensity}
+              disabled={!isOpen || glyphBorderMode !== "dotted"}
+              onChange={(event) => {
+                const nextDotDensity = Number.parseInt(event.target.value, 10);
+                if (isDotDensity(nextDotDensity)) onDotDensityChange(nextDotDensity);
               }}
-              className={cn(
-                "group/dl relative inline-flex items-center gap-2 overflow-hidden rounded-full border-2 border-[#3a2218] bg-white/90 px-5 py-2.5 text-sm font-semibold backdrop-blur-sm",
-                imageUrl &&
-                  "animate-download-pill-twinkle motion-reduce:animate-none!",
-                "transition-[transform,opacity,color,background-color,border-color] duration-300",
-                imageUrl &&
-                  "hover:scale-[1.04] hover:animate-none! hover:bg-[#3a2218] hover:text-[#fff1e3]",
-                !imageUrl && "pointer-events-none opacity-0",
-              )}
-              aria-hidden={!imageUrl}
-              tabIndex={imageUrl ? undefined : -1}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "inline-block",
-                  imageUrl &&
-                    "animate-download-arrow-bounce motion-reduce:animate-none!",
-                )}
-              >
-                ⬇
-              </span>
-              <span>save &amp; print</span>
-              <span
-                aria-hidden
-                className="pointer-events-none absolute -top-8 -left-4 size-20 rounded-full bg-[#f7c8d6]/55 blur-xl transition-opacity duration-500 group-hover/dl:opacity-60"
-              />
-            </a>
+              className="w-full accent-[#3a2218] disabled:opacity-40"
+            />
+            <div className="flex justify-between text-xs text-[#3a2218]/55">
+              <span>Sparser</span>
+              <span>Denser</span>
+            </div>
+            <p className="text-xs leading-relaxed text-[#3a2218]/60">
+              Applies only when the glyph border is set to dotted.
+            </p>
           </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
+  );
+}
+
+function PreviewCard({ imageUrl, isLoading }: PreviewCardProps) {
+  return (
+    <div className="fixed top-1/2 right-[max(2rem,calc((100vw-72rem)/2))] z-10 -translate-y-1/2">
+      <div
+        className={cn(
+          "relative mx-auto h-[65vh] aspect-8.5/11 rounded-[28px] bg-white p-3",
+          "shadow-[0_30px_60px_-20px_rgba(58,34,24,0.35)] ring-1 ring-[#3a2218]/4",
+          "animate-practice-sheet-sway motion-reduce:animate-none",
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "absolute -top-3 left-1/2 h-6 w-24 rounded-full bg-[#fff1e3]/90 [box-shadow:inset_0_0_0_1px_rgba(58,34,24,0.15)]",
+            "animate-practice-sheet-pin motion-reduce:-translate-x-1/2 motion-reduce:animate-none",
+          )}
+        />
+        {isLoading ? <SheetSkeleton /> : imageUrl ? <SheetImage imageUrl={imageUrl} /> : <SheetPlaceholder />}
+      </div>
+
+      <div className="mt-6 flex min-h-11.5 items-center justify-center">
+        <a
+          href={imageUrl || "#"}
+          download={imageUrl ? "guideline.png" : undefined}
+          onClick={(event) => {
+            if (!imageUrl) event.preventDefault();
+          }}
+          className={cn(
+            "group/dl relative inline-flex items-center gap-2 overflow-hidden rounded-full border-2 border-[#3a2218] bg-white/90 px-5 py-2.5 text-sm font-semibold backdrop-blur-sm",
+            "transition-[transform,opacity,color,background-color,border-color] duration-300",
+            imageUrl && "animate-download-pill-twinkle motion-reduce:animate-none!",
+            imageUrl && "hover:scale-[1.04] hover:animate-none! hover:bg-[#3a2218] hover:text-[#fff1e3]",
+            !imageUrl && "pointer-events-none opacity-0",
+          )}
+          aria-hidden={!imageUrl}
+          tabIndex={imageUrl ? undefined : -1}
+        >
+          <span
+            aria-hidden
+            className={cn("inline-block", imageUrl && "animate-download-arrow-bounce motion-reduce:animate-none!")}
+          >
+            v
+          </span>
+          <span>save &amp; print</span>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -top-8 -left-4 size-20 rounded-full bg-[#f7c8d6]/55 blur-xl transition-opacity duration-500 group-hover/dl:opacity-60"
+          />
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function SheetSkeleton() {
+  return (
+    <div
+      className="relative aspect-8.5/11 w-full overflow-hidden rounded-[20px]"
+      style={{
+        backgroundImage: "repeating-linear-gradient(0deg, transparent 0 36px, rgba(58,34,24,0.07) 36px 37px)",
+        backgroundColor: "#faf5ee",
+      }}
+      role="status"
+      aria-live="polite"
+      aria-busy
+      aria-label="Drawing your practice sheet"
+    >
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[20px]">
+        <div
+          className={cn(
+            "absolute -inset-y-6 -left-1/3 w-[55%] bg-linear-to-br from-transparent via-[#fffefb]/95 to-transparent",
+            "animate-practice-skeleton-shimmer opacity-[0.93] motion-reduce:animate-none",
+          )}
+        />
+        <div aria-hidden className="absolute inset-x-10 top-[12%] h-10 rounded-full bg-[#3a2218]/6" />
+        <div aria-hidden className="absolute inset-x-10 top-[34%] space-y-[22px]">
+          {SKELETON_ROWS.map((lineClass) => (
+            <div key={lineClass} className={cn("h-[10px] rounded-full bg-[#3a2218]/5", lineClass)} />
+          ))}
+        </div>
+      </div>
+      <p className="absolute inset-x-0 bottom-12 text-center text-sm font-medium text-[#3a2218]/45">
+        Guideline is sketching your letters...
+      </p>
+    </div>
+  );
+}
+
+function SheetImage({ imageUrl }: { imageUrl: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      key={imageUrl}
+      src={imageUrl}
+      alt="Guideline practice sheet"
+      className="block h-auto w-full animate-practice-sheet-image-in rounded-[20px] brightness-[0.82] contrast-[1.85] motion-reduce:animate-none"
+    />
+  );
+}
+
+function SheetPlaceholder() {
+  return (
+    <div
+      className="grid aspect-8.5/11 w-full place-items-center rounded-[20px]"
+      style={{
+        backgroundImage: "repeating-linear-gradient(0deg, transparent 0 36px, rgba(58,34,24,0.08) 36px 37px)",
+        backgroundColor: "#fffaf2",
+      }}
+    >
+      <div className="text-center">
+        <div
+          className={cn(
+            "font-(family-name:--font-display-4) text-[7rem] leading-none text-[#e07a5f] italic",
+            "animate-practice-sheet-placeholder motion-reduce:animate-none",
+          )}
+        >
+          Aa
+        </div>
+        <p className="mt-2 text-sm text-[#3a2218]/60">your practice sheet appears here</p>
+      </div>
+    </div>
   );
 }
