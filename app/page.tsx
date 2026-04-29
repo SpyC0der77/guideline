@@ -219,7 +219,7 @@ export default function GuidelinePage() {
         <div className="w-full min-w-0">
           <HeroCopy />
 
-          <form onSubmit={handleSubmit} className="mt-10 w-full max-w-md space-y-6">
+          <form onSubmit={handleSubmit} className="mt-10 w-full space-y-6 lg:max-w-md">
             <div className="rounded-2xl border border-[#3a2218]/18 bg-white/55 p-2 text-sm">
               <FontSourceTabs fontSource={fontSource} onChange={handleFontSourceChange} />
 
@@ -626,7 +626,7 @@ function PreviewCard({ imageUrl, isLoading, glyphBorderMode }: PreviewCardProps)
     <div className="flex w-full min-w-0 flex-col items-center justify-center lg:fixed lg:top-1/2 lg:right-[max(2rem,calc((100vw-72rem)/2))] lg:w-[min(calc(50vw-3rem),32rem)] lg:-translate-y-1/2">
       <div
         className={cn(
-          "relative aspect-8.5/11 w-full max-w-lg rounded-[28px] bg-white p-3 lg:max-w-[min(32rem,calc((100vh-11rem)*8.5/11))]",
+          "relative aspect-8.5/11 w-full rounded-[28px] bg-white p-3 lg:max-w-[min(32rem,calc((100vh-11rem)*8.5/11))]",
           "shadow-[0_30px_60px_-20px_rgba(58,34,24,0.35)] ring-1 ring-[#3a2218]/4",
           "animate-practice-sheet-sway motion-reduce:animate-none",
         )}
