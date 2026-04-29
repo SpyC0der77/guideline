@@ -439,6 +439,8 @@ export default function SoftPage() {
                 src={imageUrl}
                 alt="Guideline practice sheet"
                 className="animate-practice-sheet-image-in motion-reduce:animate-none block h-auto w-full rounded-[20px]"
+                // Preview-only contrast boost. The downloaded PNG remains the original blob.
+                style={{ filter: "brightness(0.82) contrast(1.85)" }}
               />
             ) : (
               <div
