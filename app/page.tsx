@@ -45,6 +45,7 @@ interface AdvancedSettingsProps {
 interface PreviewCardProps {
   imageUrl: string;
   isLoading: boolean;
+  glyphBorderMode: GlyphBorderMode;
 }
 
 const DEFAULT_DPI = 300;
@@ -206,7 +207,7 @@ export default function GuidelinePage() {
 
   return (
     <main
-      className="relative flex min-h-screen w-full flex-1 flex-col overflow-hidden font-(family-name:--font-body-4) text-[#3a2218]"
+      className="relative flex min-h-screen w-full flex-1 flex-col overflow-clip font-(family-name:--font-body-4) text-[#3a2218]"
       style={{
         background: "linear-gradient(160deg, #fff1e3 0%, #ffd9c2 45%, #f7c8d6 100%)",
       }}
@@ -214,11 +215,11 @@ export default function GuidelinePage() {
       <BackgroundShapes />
       <Header />
 
-      <section className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-center gap-12 px-8 py-16 lg:grid-cols-2">
-        <div>
+      <section className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-start gap-10 px-4 py-10 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-center lg:gap-12">
+        <div className="w-full min-w-0">
           <HeroCopy />
 
-          <form onSubmit={handleSubmit} className="mt-10 max-w-md space-y-6">
+          <form onSubmit={handleSubmit} className="mt-10 w-full max-w-md space-y-6">
             <div className="rounded-2xl border border-[#3a2218]/18 bg-white/55 p-2 text-sm">
               <FontSourceTabs fontSource={fontSource} onChange={handleFontSourceChange} />
 
@@ -267,7 +268,7 @@ export default function GuidelinePage() {
           </form>
         </div>
 
-        <PreviewCard imageUrl={imageUrl} isLoading={isLoading} />
+        <PreviewCard imageUrl={imageUrl} isLoading={isLoading} glyphBorderMode={glyphBorderMode} />
       </section>
     </main>
   );
@@ -378,7 +379,7 @@ function GoogleFontPicker({
     !results.some((fontFamily) => fontFamily.toLowerCase() === customFont.toLowerCase());
 
   return (
-    <div className="flex h-96 flex-col gap-3 px-2 py-4">
+    <div className="flex flex-col gap-3 px-2 py-4">
       <label htmlFor="google-font-search" className="font-medium text-[#3a2218]">
         Search Google Fonts
       </label>
@@ -394,7 +395,7 @@ function GoogleFontPicker({
         />
       </div>
 
-      <div className="scrollbar-none grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto pr-1">
+      <div className="grid grid-cols-2 content-start gap-2">
         {canUseCustomFont ? (
           <FontButton
             className="col-span-2"
@@ -620,12 +621,12 @@ function AdvancedSettings({
   );
 }
 
-function PreviewCard({ imageUrl, isLoading }: PreviewCardProps) {
+function PreviewCard({ imageUrl, isLoading, glyphBorderMode }: PreviewCardProps) {
   return (
-    <div className="fixed top-1/2 right-[max(2rem,calc((100vw-72rem)/2))] z-10 -translate-y-1/2">
+    <div className="flex w-full min-w-0 flex-col items-center justify-center lg:fixed lg:top-1/2 lg:right-[max(2rem,calc((100vw-72rem)/2))] lg:w-[min(calc(50vw-3rem),32rem)] lg:-translate-y-1/2">
       <div
         className={cn(
-          "relative mx-auto h-[65vh] aspect-8.5/11 rounded-[28px] bg-white p-3",
+          "relative aspect-8.5/11 w-full max-w-lg rounded-[28px] bg-white p-3 lg:max-w-[min(32rem,calc((100vh-11rem)*8.5/11))]",
           "shadow-[0_30px_60px_-20px_rgba(58,34,24,0.35)] ring-1 ring-[#3a2218]/4",
           "animate-practice-sheet-sway motion-reduce:animate-none",
         )}
@@ -639,6 +640,13 @@ function PreviewCard({ imageUrl, isLoading }: PreviewCardProps) {
         />
         {isLoading ? <SheetSkeleton /> : imageUrl ? <SheetImage imageUrl={imageUrl} /> : <SheetPlaceholder />}
       </div>
+
+      {glyphBorderMode === "dotted" ? (
+        <p className="mt-4 max-w-sm text-center text-xs leading-relaxed text-[#3a2218]/60">
+          Note: Dotted lines appear blurry on most displays. Zoom in or print it out to see them
+          clearly.
+        </p>
+      ) : null}
 
       <div className="mt-6 flex min-h-11.5 items-center justify-center">
         <a
