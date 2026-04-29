@@ -11,13 +11,26 @@ import {
 } from "@/lib/create-tracing-sheet";
 
 const FONT_SIZE_LIMIT = 4 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = new Set([".ttf", ".otf"]);
+const ALLOWED_UPLOAD_EXTENSIONS = new Set([".ttf", ".otf"]);
+const GOOGLE_FONT_CSS_ENDPOINT = "https://fonts.googleapis.com/css2";
+const GOOGLE_FONT_FAMILY_ALIASES = new Map([
+  ["arial", "Arimo"],
+  ["comic sans", "Comic Neue"],
+  ["comic sans ms", "Comic Neue"],
+]);
 
 export const runtime = "nodejs";
 
 function sanitizeFontName(input: string): string {
   const normalized = input.replace(/[^a-zA-Z0-9 _-]/g, " ").replace(/\s+/g, " ").trim();
   return normalized || "Font";
+}
+
+function parseGoogleFontFamily(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!/^[a-zA-Z0-9 ]{1,80}$/.test(normalized)) return null;
+  return normalized;
 }
 
 function parseDpi(value: FormDataEntryValue | null): number {
@@ -53,30 +66,79 @@ function getDisplayNameFromBuffer(buffer: Buffer, fallback: string): string {
   return sanitizeFontName(fallback);
 }
 
+async function getGoogleFontBuffer(fontFamily: string): Promise<{ buffer: Buffer; extension: string }> {
+  const resolvedFontFamily = GOOGLE_FONT_FAMILY_ALIASES.get(fontFamily.toLowerCase()) ?? fontFamily;
+  const cssUrl = new URL(GOOGLE_FONT_CSS_ENDPOINT);
+  cssUrl.searchParams.set("family", `${resolvedFontFamily}:wght@400`);
+  cssUrl.searchParams.set("display", "swap");
+
+  const cssResponse = await fetch(cssUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+    },
+  });
+  if (!cssResponse.ok) throw new Error("Unable to load Google Font CSS.");
+
+  const css = await cssResponse.text();
+  const fontUrlMatch = css.match(/url\((?:'|")?(https:\/\/fonts\.gstatic\.com\/[^)'"]+)(?:'|")?\)/);
+  const fontUrl = fontUrlMatch?.[1];
+  if (!fontUrl) throw new Error("Google Font file was not found.");
+
+  const fontResponse = await fetch(fontUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+    },
+  });
+  if (!fontResponse.ok) throw new Error("Unable to load Google Font file.");
+
+  const extension = path.extname(new URL(fontUrl).pathname).toLowerCase() || ".woff2";
+  const arrayBuffer = await fontResponse.arrayBuffer();
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    extension,
+  };
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const formData = await request.formData();
-    const font = formData.get("font");
-    if (!(font instanceof File))
-      return Response.json({ error: "A font file is required." }, { status: 400 });
-
-    if (font.size <= 0 || font.size > FONT_SIZE_LIMIT)
-      return Response.json(
-        { error: "Font file must be between 1 byte and 4 MB." },
-        { status: 400 }
-      );
-
-    const extension = path.extname(font.name).toLowerCase();
-    if (!ALLOWED_EXTENSIONS.has(extension))
-      return Response.json({ error: "Only .ttf and .otf fonts are supported." }, { status: 400 });
-
     const dpi = parseDpi(formData.get("dpi"));
     const glyphBorderMode = parseGlyphBorderMode(formData.get("glyphBorderMode"));
     const dotDensity = parseDotDensity(formData.get("dotDensity"));
-    const arrayBuffer = await font.arrayBuffer();
-    const fontBuffer = Buffer.from(arrayBuffer);
-    const fallbackName = path.basename(font.name, extension);
-    const fontDisplayName = getDisplayNameFromBuffer(fontBuffer, fallbackName);
+    const fontSource = formData.get("fontSource");
+    let fontBuffer: Buffer;
+    let extension: string;
+    let fontDisplayName: string;
+
+    if (fontSource === "google") {
+      const googleFontFamily = parseGoogleFontFamily(formData.get("googleFontFamily"));
+      if (!googleFontFamily)
+        return Response.json({ error: "Choose a valid Google Font family." }, { status: 400 });
+
+      const googleFont = await getGoogleFontBuffer(googleFontFamily);
+      fontBuffer = googleFont.buffer;
+      extension = googleFont.extension;
+      fontDisplayName = sanitizeFontName(googleFontFamily);
+    } else {
+      const font = formData.get("font");
+      if (!(font instanceof File))
+        return Response.json({ error: "A font file is required." }, { status: 400 });
+
+      if (font.size <= 0 || font.size > FONT_SIZE_LIMIT)
+        return Response.json(
+          { error: "Font file must be between 1 byte and 4 MB." },
+          { status: 400 }
+        );
+
+      extension = path.extname(font.name).toLowerCase();
+      if (!ALLOWED_UPLOAD_EXTENSIONS.has(extension))
+        return Response.json({ error: "Only .ttf and .otf fonts are supported." }, { status: 400 });
+
+      const arrayBuffer = await font.arrayBuffer();
+      fontBuffer = Buffer.from(arrayBuffer);
+      const fallbackName = path.basename(font.name, extension);
+      fontDisplayName = getDisplayNameFromBuffer(fontBuffer, fallbackName);
+    }
     const fontFamily = `guideline-${randomUUID()}`;
 
     const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "guideline-"));

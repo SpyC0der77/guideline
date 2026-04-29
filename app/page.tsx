@@ -1,6 +1,6 @@
 "use client";
 
-import { File } from "lucide-react";
+import { File, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -9,8 +9,13 @@ interface ApiErrorResponse {
   error?: string;
 }
 
+interface GoogleFontsResponse {
+  fonts?: string[];
+}
+
 type GlyphBorderMode = "solid" | "dotted";
 type DotDensity = 1 | 2 | 3 | 4;
+type FontSource = "google" | "upload";
 
 interface GlyphBorderModeOption {
   value: GlyphBorderMode;
@@ -20,6 +25,30 @@ interface GlyphBorderModeOption {
 
 const DEFAULT_DPI = 300;
 const DEFAULT_DOT_DENSITY: DotDensity = 1;
+const POPULAR_GOOGLE_FONT_FAMILIES = [
+  "Inter",
+  "DM Sans",
+  "Roboto",
+  "Open Sans",
+  "Lato",
+  "Montserrat",
+  "Poppins",
+  "Nunito",
+  "Raleway",
+  "Oswald",
+  "Playfair Display",
+  "Merriweather",
+  "Source Sans 3",
+  "Noto Sans",
+  "Arial",
+  "Comic Sans MS",
+  "Arimo",
+  "Comic Neue",
+  "Caveat",
+  "Kalam",
+  "Dancing Script",
+  "Patrick Hand",
+] as const;
 const GLYPH_BORDER_MODE_OPTIONS: GlyphBorderModeOption[] = [
   {
     value: "solid",
@@ -54,6 +83,13 @@ function GuidelineMark({ className }: { className?: string }) {
 }
 
 export default function SoftPage() {
+  const [fontSource, setFontSource] = useState<FontSource>("google");
+  const [googleFontQuery, setGoogleFontQuery] = useState("");
+  const [googleFontResults, setGoogleFontResults] = useState<string[]>([
+    ...POPULAR_GOOGLE_FONT_FAMILIES,
+  ]);
+  const [selectedGoogleFont, setSelectedGoogleFont] = useState("Inter");
+  const [isGoogleFontsLoading, setIsGoogleFontsLoading] = useState(false);
   const [fontFile, setFontFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -64,10 +100,41 @@ export default function SoftPage() {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const dragDepth = useRef(0);
   const imageUrl = useMemo(() => (imageBlob ? URL.createObjectURL(imageBlob) : ""), [imageBlob]);
+  const customGoogleFont = useMemo(() => googleFontQuery.replace(/\s+/g, " ").trim(), [googleFontQuery]);
+  const canUseCustomGoogleFont =
+    /^[a-zA-Z0-9 ]{1,80}$/.test(customGoogleFont) &&
+    !googleFontResults.some((fontFamily) => fontFamily.toLowerCase() === customGoogleFont.toLowerCase());
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
   }, [imageUrl]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setIsGoogleFontsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (googleFontQuery.trim()) params.set("query", googleFontQuery.trim());
+        const response = await fetch(`/api/google-fonts?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as GoogleFontsResponse;
+        if (!controller.signal.aborted) {
+          setGoogleFontResults(payload.fonts?.length ? payload.fonts : []);
+        }
+      } catch {
+        if (!controller.signal.aborted) setGoogleFontResults([...POPULAR_GOOGLE_FONT_FAMILIES]);
+      } finally {
+        if (!controller.signal.aborted) setIsGoogleFontsLoading(false);
+      }
+    }, googleFontQuery.trim() ? 220 : 0);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [googleFontQuery]);
 
   function handleDragEnter(event: React.DragEvent<HTMLLabelElement>) {
     event.preventDefault();
@@ -107,6 +174,18 @@ export default function SoftPage() {
     setImageBlob(null);
   }
 
+  function handleFontSourceChange(nextFontSource: FontSource) {
+    setFontSource(nextFontSource);
+    setErrorMessage("");
+    setImageBlob(null);
+  }
+
+  function handleGoogleFontSelect(nextGoogleFont: string) {
+    setSelectedGoogleFont(nextGoogleFont);
+    setErrorMessage("");
+    setImageBlob(null);
+  }
+
   function handleDotDensityChange(event: React.ChangeEvent<HTMLInputElement>) {
     const nextDotDensity = Number.parseInt(event.target.value, 10);
     if (nextDotDensity === 1 || nextDotDensity === 2 || nextDotDensity === 3 || nextDotDensity === 4) {
@@ -117,7 +196,12 @@ export default function SoftPage() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!fontFile) {
+    const googleFontFamily = selectedGoogleFont.trim();
+    if (fontSource === "google" && !googleFontFamily) {
+      setErrorMessage("Pick a Google Font first.");
+      return;
+    }
+    if (fontSource === "upload" && !fontFile) {
       setErrorMessage("Pop a font file in first — any .ttf or .otf will do.");
       return;
     }
@@ -125,7 +209,9 @@ export default function SoftPage() {
     setErrorMessage("");
     setImageBlob(null);
     const body = new FormData();
-    body.append("font", fontFile);
+    body.append("fontSource", fontSource);
+    if (fontSource === "google") body.append("googleFontFamily", googleFontFamily);
+    if (fontSource === "upload" && fontFile) body.append("font", fontFile);
     body.append("dpi", String(DEFAULT_DPI));
     body.append("glyphBorderMode", glyphBorderMode);
     body.append("dotDensity", String(dotDensity));
@@ -200,57 +286,158 @@ export default function SoftPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="mt-10 max-w-md space-y-6">
-            <label
-              htmlFor="font-upload"
-              className="block cursor-pointer"
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              <span
-                className={cn(
-                  "group/upload relative flex items-center gap-3 overflow-hidden rounded-3xl border-2 border-dashed border-[#3a2218]/30 bg-white/70 px-5 py-4 text-sm backdrop-blur-sm",
-                  "transition-all duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]",
-                  "hover:-translate-y-1 hover:rotate-[-0.85deg] hover:border-[#e07a5f]/85 hover:bg-white hover:shadow-[0_14px_40px_-14px_oklch(0.52_0.16_32/0.35)]",
-                  !fontFile && !isDragOver && "animate-upload-zone-breathe",
-                  isDragOver &&
-                    "scale-[1.04] -rotate-2 border-solid border-[#e07a5f] bg-white shadow-[0_28px_50px_-20px_oklch(0.48_0.15_28/0.45)] ring-4 ring-[#e07a5f]/25",
-                )}
-              >
-                {!fontFile ? (
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "animate-upload-dash-march pointer-events-none absolute inset-0 rounded-3xl opacity-[0.08] transition-opacity duration-300",
-                      "group-hover/upload:opacity-[0.16]",
-                      isDragOver && "opacity-30",
-                    )}
-                  />
-                ) : null}
-                <span
-                  aria-hidden
-                  className="relative inline-flex shrink-0 items-center justify-center transition-transform duration-300 group-hover/upload:scale-[1.03] animate-whimsical-paper-float motion-reduce:animate-none"
+            <div className="rounded-2xl border border-[#3a2218]/18 bg-white/55 p-2 text-sm">
+              <div className="grid grid-cols-2 border-b border-[#3a2218]/12">
+                <button
+                  type="button"
+                  onClick={() => handleFontSourceChange("google")}
+                  className={cn(
+                    "px-3 py-2.5 text-center font-semibold transition-colors",
+                    fontSource === "google"
+                      ? "border-b-2 border-[#3a2218] text-[#3a2218]"
+                      : "text-[#3a2218]/55 hover:text-[#3a2218]",
+                  )}
+                  aria-pressed={fontSource === "google"}
                 >
-                  <File className="size-6 text-[#3a2218]" strokeWidth={1.75} />
-                </span>
-                <span className="relative min-w-0 flex-1 truncate">
-                  {fontFile?.name ??
-                    (isDragOver ? "Let go — I’ve got it!" : "Drop in a .ttf or .otf")}
-                </span>
-                <span className="relative rounded-full bg-[#3a2218] px-3 py-1 text-xs text-[#fff1e3] shadow-sm">
-                  browse
-                </span>
-                <input
-                  id="font-upload"
-                  type="file"
-                  accept=".ttf,.otf,font/ttf,font/otf"
-                  aria-label="Choose a font file (.ttf or .otf)"
-                  onChange={(event) => setFontFile(event.target.files?.[0] ?? null)}
-                  className="sr-only"
-                />
-              </span>
-            </label>
+                  Google Fonts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFontSourceChange("upload")}
+                  className={cn(
+                    "px-3 py-2.5 text-center font-semibold transition-colors",
+                    fontSource === "upload"
+                      ? "border-b-2 border-[#3a2218] text-[#3a2218]"
+                      : "text-[#3a2218]/55 hover:text-[#3a2218]",
+                  )}
+                  aria-pressed={fontSource === "upload"}
+                >
+                  Upload
+                </button>
+              </div>
+
+              {fontSource === "google" ? (
+                <div className="flex h-96 flex-col gap-3 px-2 py-4">
+                  <label htmlFor="google-font-search" className="font-medium text-[#3a2218]">
+                    Search Google Fonts
+                  </label>
+                  <div className="flex items-center gap-2 rounded-xl border border-[#3a2218]/18 bg-white/80 px-3 py-2 focus-within:ring-2 focus-within:ring-[#e07a5f]/35">
+                    <Search className="size-4 shrink-0 text-[#3a2218]/55" strokeWidth={1.75} />
+                    <input
+                      id="google-font-search"
+                      type="search"
+                      value={googleFontQuery}
+                      onChange={(event) => setGoogleFontQuery(event.target.value)}
+                      placeholder="Try Inter, DM Sans, Arial..."
+                      className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#3a2218]/40"
+                    />
+                  </div>
+                  <div className="scrollbar-none grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto pr-1">
+                    {canUseCustomGoogleFont ? (
+                      <button
+                        type="button"
+                        onClick={() => handleGoogleFontSelect(customGoogleFont)}
+                        className={cn(
+                          "col-span-2 rounded-xl border bg-white/70 px-3 py-2 text-left transition-colors",
+                          selectedGoogleFont === customGoogleFont
+                            ? "border-[#3a2218] text-[#3a2218]"
+                            : "border-[#3a2218]/14 text-[#3a2218]/65 hover:border-[#3a2218]/40",
+                        )}
+                      >
+                        <span className="block truncate font-semibold">
+                          Use &quot;{customGoogleFont}&quot;
+                        </span>
+                      </button>
+                    ) : null}
+                    {googleFontResults.map((fontFamily) => {
+                      const isSelected = selectedGoogleFont === fontFamily;
+
+                      return (
+                        <button
+                          key={fontFamily}
+                          type="button"
+                          onClick={() => handleGoogleFontSelect(fontFamily)}
+                          className={cn(
+                            "rounded-xl border bg-white/70 px-3 py-2 text-left transition-colors",
+                            isSelected
+                              ? "border-[#3a2218] text-[#3a2218]"
+                              : "border-[#3a2218]/14 text-[#3a2218]/65 hover:border-[#3a2218]/40",
+                          )}
+                        >
+                          <span className="block truncate font-semibold">{fontFamily}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="h-4">
+                    {isGoogleFontsLoading ? (
+                      <p className="text-xs text-[#3a2218]/60">Searching Google Fonts...</p>
+                    ) : googleFontResults.length === 0 ? (
+                      <p className="text-xs text-[#3a2218]/60">
+                        Google will check the exact family name when you make the sheet.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-96 items-start px-2 py-4">
+                  <label
+                    htmlFor="font-upload"
+                    className="block w-full cursor-pointer"
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  >
+                    <span
+                      className={cn(
+                        "group/upload relative flex items-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed border-[#3a2218]/30 bg-white/70 px-5 py-4 text-sm",
+                        "transition-all duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]",
+                        "hover:border-[#e07a5f]/85 hover:bg-white",
+                        !fontFile && !isDragOver && "animate-upload-zone-breathe",
+                        isDragOver &&
+                          "scale-[1.02] border-solid border-[#e07a5f] bg-white ring-4 ring-[#e07a5f]/25",
+                      )}
+                    >
+                      {!fontFile ? (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "animate-upload-dash-march pointer-events-none absolute inset-0 rounded-2xl opacity-[0.08] transition-opacity duration-300",
+                            "group-hover/upload:opacity-[0.16]",
+                            isDragOver && "opacity-30",
+                          )}
+                        />
+                      ) : null}
+                      <span
+                        aria-hidden
+                        className="relative inline-flex shrink-0 items-center justify-center transition-transform duration-300 group-hover/upload:scale-[1.03] animate-whimsical-paper-float motion-reduce:animate-none"
+                      >
+                        <File className="size-6 text-[#3a2218]" strokeWidth={1.75} />
+                      </span>
+                      <span className="relative min-w-0 flex-1 truncate">
+                        {fontFile?.name ??
+                          (isDragOver ? "Let go — I’ve got it!" : "Drop in a .ttf or .otf")}
+                      </span>
+                      <span className="relative rounded-xl bg-[#3a2218] px-3 py-1 text-xs text-[#fff1e3] shadow-sm">
+                        browse
+                      </span>
+                      <input
+                        id="font-upload"
+                        type="file"
+                        accept=".ttf,.otf,font/ttf,font/otf"
+                        aria-label="Choose a font file (.ttf or .otf)"
+                        onChange={(event) => {
+                          setFontFile(event.target.files?.[0] ?? null);
+                          setImageBlob(null);
+                        }}
+                        className="sr-only"
+                      />
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
 
             <div className="rounded-2xl border border-[#3a2218]/18 bg-white/50 px-4 py-3 text-sm">
               <button
