@@ -641,12 +641,16 @@ function PreviewCard({ imageUrl, isLoading, glyphBorderMode }: PreviewCardProps)
         {isLoading ? <SheetSkeleton /> : imageUrl ? <SheetImage imageUrl={imageUrl} /> : <SheetPlaceholder />}
       </div>
 
-      {glyphBorderMode === "dotted" ? (
-        <p className="mt-4 max-w-sm text-center text-xs leading-relaxed text-[#3a2218]/60">
-          Note: Dotted lines appear blurry on most displays. Zoom in or print it out to see them
-          clearly.
-        </p>
-      ) : null}
+      <p
+        aria-hidden={glyphBorderMode !== "dotted"}
+        className={cn(
+          "mt-4 max-w-sm text-center text-xs leading-relaxed",
+          glyphBorderMode === "dotted" ? "text-[#3a2218]/60" : "text-transparent",
+        )}
+      >
+        Note: Dotted lines appear blurry on most displays. Zoom in or print it out to see them
+        clearly.
+      </p>
 
       <div className="mt-6 flex min-h-11.5 items-center justify-center">
         <a
