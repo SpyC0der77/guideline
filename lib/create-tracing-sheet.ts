@@ -2,6 +2,7 @@ import { GlobalFonts, createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
 
 export type GlyphBorderMode = "solid" | "dotted";
 export type DotDensity = 1 | 2 | 3 | 4;
+export type GlyphThickness = 1 | 2 | 3 | 4 | 5;
 
 interface TracingSheetOptions {
   dpi: number;
@@ -10,6 +11,7 @@ interface TracingSheetOptions {
   fontDisplayName: string;
   glyphBorderMode?: GlyphBorderMode;
   dotDensity?: DotDensity;
+  glyphThickness?: GlyphThickness;
 }
 
 interface GlyphMetrics {
@@ -30,6 +32,26 @@ function getDotGapMultiplier(dotDensity: DotDensity): number {
     4: 0.75,
   };
   return gapMultipliers[dotDensity];
+}
+
+function getGlyphStrokeWidth(
+  safeDpi: number,
+  letterSize: number,
+  glyphThickness: GlyphThickness
+): number {
+  const multipliers: Record<GlyphThickness, number> = {
+    1: 0.55,
+    2: 0.75,
+    3: 1,
+    4: 1.35,
+    5: 1.8,
+  };
+  const baselineWidth = safeDpi * 0.01;
+  const minimumWidth = 1;
+  const maximumWidth = Math.max(minimumWidth, letterSize * 0.035);
+  const scaledWidth = baselineWidth * multipliers[glyphThickness];
+
+  return Math.round(Math.max(minimumWidth, Math.min(maximumWidth, scaledWidth)));
 }
 
 function getGlyphMetrics(context: SKRSContext2D, text: string): GlyphMetrics {
@@ -73,6 +95,7 @@ export function createTracingSheetPng({
   fontDisplayName,
   glyphBorderMode = "solid",
   dotDensity = 1,
+  glyphThickness = 3,
 }: TracingSheetOptions): Buffer {
   const safeDpi = clampDpi(dpi);
   GlobalFonts.registerFromPath(fontPath, fontFamily);
@@ -121,7 +144,7 @@ export function createTracingSheetPng({
   const totalRows = pairRows.length + numberRows.length;
   const rowHeight = (pageHeight - y - margin) / totalRows;
   const letterSize = Math.floor(rowHeight);
-  const strokeWidth = Math.max(1, Math.floor(safeDpi * 0.01));
+  const strokeWidth = getGlyphStrokeWidth(safeDpi, letterSize, glyphThickness);
   const gap = Math.floor(letterSize * 0.1);
   context.font = `${letterSize}px "${fontFamily}"`;
   context.textBaseline = "alphabetic";

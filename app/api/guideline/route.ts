@@ -8,6 +8,7 @@ import {
   createTracingSheetPng,
   type DotDensity,
   type GlyphBorderMode,
+  type GlyphThickness,
 } from "@/lib/create-tracing-sheet";
 
 const FONT_SIZE_LIMIT = 4 * 1024 * 1024;
@@ -46,6 +47,7 @@ export async function POST(request: Request): Promise<Response> {
       fontDisplayName: font.displayName,
       glyphBorderMode: parseGlyphBorderMode(formData.get("glyphBorderMode")),
       dotDensity: parseDotDensity(formData.get("dotDensity")),
+      glyphThickness: parseGlyphThickness(formData.get("glyphThickness")),
     });
 
     return new Response(new Uint8Array(pngBuffer), {
@@ -111,6 +113,17 @@ function parseGlyphBorderMode(value: FormDataEntryValue | null): GlyphBorderMode
 function parseDotDensity(value: FormDataEntryValue | null): DotDensity {
   const dotDensity = typeof value === "string" ? Number.parseInt(value, 10) : 1;
   return dotDensity === 1 || dotDensity === 2 || dotDensity === 3 || dotDensity === 4 ? dotDensity : 1;
+}
+
+function parseGlyphThickness(value: FormDataEntryValue | null): GlyphThickness {
+  const glyphThickness = typeof value === "string" ? Number.parseInt(value, 10) : 3;
+  return glyphThickness === 1 ||
+    glyphThickness === 2 ||
+    glyphThickness === 3 ||
+    glyphThickness === 4 ||
+    glyphThickness === 5
+    ? glyphThickness
+    : 3;
 }
 
 function sanitizeFontName(input: string) {

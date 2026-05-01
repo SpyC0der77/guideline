@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 type GlyphBorderMode = "solid" | "dotted";
 type DotDensity = 1 | 2 | 3 | 4;
+type GlyphThickness = 1 | 2 | 3 | 4 | 5;
 type FontSource = "google" | "upload";
 
 interface GoogleFontsResponse {
@@ -37,9 +38,11 @@ interface AdvancedSettingsProps {
   isOpen: boolean;
   glyphBorderMode: GlyphBorderMode;
   dotDensity: DotDensity;
+  glyphThickness: GlyphThickness;
   onOpenChange: (isOpen: boolean) => void;
   onGlyphBorderModeChange: (glyphBorderMode: GlyphBorderMode) => void;
   onDotDensityChange: (dotDensity: DotDensity) => void;
+  onGlyphThicknessChange: (glyphThickness: GlyphThickness) => void;
 }
 
 interface PreviewCardProps {
@@ -50,6 +53,7 @@ interface PreviewCardProps {
 
 const DEFAULT_DPI = 300;
 const DEFAULT_DOT_DENSITY: DotDensity = 1;
+const DEFAULT_GLYPH_THICKNESS: GlyphThickness = 3;
 const GLYPH_BORDER_OPTIONS: Array<{
   value: GlyphBorderMode;
   label: string;
@@ -63,6 +67,13 @@ const DOT_DENSITY_LABELS: Record<DotDensity, string> = {
   2: "Normal",
   3: "Dense",
   4: "Tight",
+};
+const GLYPH_THICKNESS_LABELS: Record<GlyphThickness, string> = {
+  1: "Fine",
+  2: "Light",
+  3: "Normal",
+  4: "Bold",
+  5: "Heavy",
 };
 const SKELETON_ROWS = [
   "w-[92%]",
@@ -97,6 +108,10 @@ function isDotDensity(value: number): value is DotDensity {
   return value === 1 || value === 2 || value === 3 || value === 4;
 }
 
+function isGlyphThickness(value: number): value is GlyphThickness {
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5;
+}
+
 export default function GuidelinePage() {
   const [fontSource, setFontSource] = useState<FontSource>("google");
   const [googleFontQuery, setGoogleFontQuery] = useState("");
@@ -108,6 +123,7 @@ export default function GuidelinePage() {
   const [fontFile, setFontFile] = useState<globalThis.File | null>(null);
   const [glyphBorderMode, setGlyphBorderMode] = useState<GlyphBorderMode>("solid");
   const [dotDensity, setDotDensity] = useState<DotDensity>(DEFAULT_DOT_DENSITY);
+  const [glyphThickness, setGlyphThickness] = useState<GlyphThickness>(DEFAULT_GLYPH_THICKNESS);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -170,6 +186,11 @@ export default function GuidelinePage() {
     setImageBlob(null);
   }
 
+  function handleGlyphThicknessChange(nextGlyphThickness: GlyphThickness) {
+    setGlyphThickness(nextGlyphThickness);
+    setImageBlob(null);
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -188,6 +209,7 @@ export default function GuidelinePage() {
     body.append("dpi", String(DEFAULT_DPI));
     body.append("glyphBorderMode", glyphBorderMode);
     body.append("dotDensity", String(dotDensity));
+    body.append("glyphThickness", String(glyphThickness));
     if (fontSource === "google") body.append("googleFontFamily", selectedGoogleFont.trim());
     if (fontSource === "upload" && fontFile) body.append("font", fontFile);
 
@@ -247,9 +269,11 @@ export default function GuidelinePage() {
               isOpen={isAdvancedOpen}
               glyphBorderMode={glyphBorderMode}
               dotDensity={dotDensity}
+              glyphThickness={glyphThickness}
               onOpenChange={setIsAdvancedOpen}
               onGlyphBorderModeChange={handleGlyphBorderModeChange}
               onDotDensityChange={handleDotDensityChange}
+              onGlyphThicknessChange={handleGlyphThicknessChange}
             />
 
             {errorMessage ? (
@@ -525,9 +549,11 @@ function AdvancedSettings({
   isOpen,
   glyphBorderMode,
   dotDensity,
+  glyphThickness,
   onOpenChange,
   onGlyphBorderModeChange,
   onDotDensityChange,
+  onGlyphThicknessChange,
 }: AdvancedSettingsProps) {
   return (
     <div className="rounded-2xl border border-[#3a2218]/18 bg-white/50 px-4 py-3 text-sm">
@@ -557,6 +583,38 @@ function AdvancedSettings({
       >
         <div className="overflow-hidden">
           <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <label htmlFor="glyph-thickness" className="font-medium text-[#3a2218]">
+                  Glyph thickness
+                </label>
+                <span className="text-xs text-[#3a2218]/60">
+                  {GLYPH_THICKNESS_LABELS[glyphThickness]}
+                </span>
+              </div>
+              <input
+                id="glyph-thickness"
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={glyphThickness}
+                disabled={!isOpen}
+                onChange={(event) => {
+                  const nextGlyphThickness = Number.parseInt(event.target.value, 10);
+                  if (isGlyphThickness(nextGlyphThickness)) onGlyphThicknessChange(nextGlyphThickness);
+                }}
+                className="w-full accent-[#3a2218] disabled:opacity-40"
+              />
+              <div className="flex justify-between text-xs text-[#3a2218]/55">
+                <span>Fine</span>
+                <span>Heavy</span>
+              </div>
+              <p className="text-xs leading-relaxed text-[#3a2218]/60">
+                Changes the generated glyph strokes, not the sheet or control borders.
+              </p>
+            </div>
+
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold text-[#3a2218]">Glyph border</legend>
               <div className="grid grid-cols-2 gap-2">
