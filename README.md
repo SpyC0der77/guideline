@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Guideline
 
-## Getting Started
+Generate printable handwriting practice sheets from a Google Font or an uploaded font file.
 
-First, run the development server:
+![Generated handwriting practice sheet](docs/images/app.png)
+
+[Live demo](https://tracing-sheet-generator.vercel.app)
+
+## What it does
+
+- Search Google Fonts or upload a `.ttf` or `.otf` file.
+- Choose solid or dotted glyph outlines.
+- Adjust dot density and glyph thickness.
+- Preview and download the generated PNG sheet at 300 DPI.
+
+## Run locally
+
+Use Node.js 20.9+ and Bun.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/SpyC0der77/guideline.git
+cd guideline
+bun install --frozen-lockfile
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Purpose |
+| --- | --- |
+| `bun run dev` | Start the development server |
+| `bun run build` | Build the production app |
+| `bun run start` | Serve a production build |
+| `bun run lint` | Run ESLint |
 
-## Learn More
+Run `build` before `start`.
 
-To learn more about Next.js, take a look at the following resources:
+## Dependencies and limitations
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Sheet generation runs on the server with `@napi-rs/canvas` and `fontkit`. Google Font selection requires network access; uploaded fonts provide an alternative. Deploy on a Node.js runtime that supports the canvas native dependency.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Source layout
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`app/page.tsx`](app/page.tsx): Font picker, settings, preview, and download.
+- [`app/api/guideline/route.ts`](app/api/guideline/route.ts): Sheet generation endpoint.
+- [`app/api/google-fonts/route.ts`](app/api/google-fonts/route.ts): Font search endpoint.
+- [`lib/`](lib/): Font loading and sheet generation helpers.
