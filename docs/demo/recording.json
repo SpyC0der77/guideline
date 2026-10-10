@@ -1,0 +1,30 @@
+{
+  "name": "guideline",
+  "url": "https://tracing-sheet-generator.vercel.app",
+  "width": 960,
+  "height": 600,
+  "fps": 18,
+  "duration": 23.22222222222222,
+  "events": [
+    {
+      "time": 0.67,
+      "text": "Page overview and typeface search"
+    },
+    {
+      "time": 6.28,
+      "verified": "Caveat is selected"
+    },
+    {
+      "time": 7.06,
+      "text": "Outline settings"
+    },
+    {
+      "time": 16.89,
+      "text": "Generate and inspect the practice sheet"
+    },
+    {
+      "time": 21.11,
+      "verified": "Generated PNG is 2550 pixels wide"
+    }
+  ]
+}
