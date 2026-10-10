@@ -6,8 +6,6 @@ Generate printable handwriting practice sheets from a Google Font or an uploaded
 
 ![Choosing Caveat and generating a printable practice sheet.](docs/images/demo.gif)
 
-Choosing Caveat and generating a printable practice sheet.
-
 <details>
 <summary>Screenshot</summary>
 
